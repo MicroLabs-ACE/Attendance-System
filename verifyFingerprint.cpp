@@ -78,25 +78,25 @@ uint8_t verifyFingerprint(Adafruit_Fingerprint fingerprintSensor)
     return fingerprintSensor.fingerID;
 }
 
-// // returns -1 if failed, otherwise returns ID #
-// int getFingerprintIDez(Adafruit_Fingerprint fingerprintSensor)
-// {
-//     uint8_t p = fingerprintSensor.getImage();
-//     if (p != FINGERPRINT_OK)
-//         return -1;
+// returns -1 if failed, otherwise returns ID #
+int verifyAllFingerprint(Adafruit_Fingerprint fingerprintSensor)
+{
+    uint8_t p = fingerprintSensor.getImage();
+    if (p != FINGERPRINT_OK)
+        return -1;
 
-//     p = fingerprintSensor.image2Tz();
-//     if (p != FINGERPRINT_OK)
-//         return -1;
+    p = fingerprintSensor.image2Tz();
+    if (p != FINGERPRINT_OK)
+        return -1;
 
-//     p = fingerprintSensor.fingerFastSearch();
-//     if (p != FINGERPRINT_OK)
-//         return -1;
+    p = fingerprintSensor.fingerFastSearch();
+    if (p != FINGERPRINT_OK)
+        return -1;
 
-//     // found a match!
-//     Serial.print("Found ID #");
-//     Serial.print(fingerprintSensor.fingerID);
-//     Serial.print(" with confidence of ");
-//     Serial.println(fingerprintSensor.confidence);
-//     return fingerprintSensor.fingerID;
-// }
+    // found a match!
+    Serial.print("Found ID #");
+    Serial.print(fingerprintSensor.fingerID);
+    Serial.print(" with confidence of ");
+    Serial.println(fingerprintSensor.confidence);
+    return fingerprintSensor.fingerID;
+}

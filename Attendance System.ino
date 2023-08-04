@@ -11,6 +11,7 @@ const char ENROL_ALL = 'F';
 
 const char VERIFY = 'V';
 const char VERIFY_ALL = 'W';
+const char STOP_VERIFY = 'S';
 
 const char DELETE = 'D';
 const char DELETE_ALL = 'C';
@@ -93,6 +94,24 @@ void loop()
       break;
 
     case VERIFY_ALL:
+      Serial.println("Fingerprint sensor is now operating in burst mode.");
+      Serial.print("Enter '");
+      Serial.print(STOP_VERIFY);
+      Serial.println("' to stop operation.");
+
+      while (true)
+      {
+        verifyID = verifyAllFingerprint(fingerprintSensor);
+        if (Serial.available() > 0)
+        {
+          char shouldStop = Serial.read();
+          if (shouldStop == STOP_VERIFY)
+          {
+            Serial.println("Burst mode ended!");
+            break;
+          }
+        }
+      }
       break;
 
     // Delete
