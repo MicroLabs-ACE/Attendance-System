@@ -1,11 +1,10 @@
 #include <Adafruit_Fingerprint.h>
 
-uint8_t getFingerprintEnroll(Adafruit_Fingerprint fingerprintSensor, uint8_t id)
+uint8_t enrolFingerprint(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID)
 {
-
     int p = -1;
     Serial.print("Waiting for valid finger to enroll as #");
-    Serial.println(id);
+    Serial.println(enrolID);
     while (p != FINGERPRINT_OK)
     {
         p = fingerprintSensor.getImage();
@@ -30,7 +29,6 @@ uint8_t getFingerprintEnroll(Adafruit_Fingerprint fingerprintSensor, uint8_t id)
     }
 
     // OK success!
-
     p = fingerprintSensor.image2Tz(1);
     switch (p)
     {
@@ -62,7 +60,7 @@ uint8_t getFingerprintEnroll(Adafruit_Fingerprint fingerprintSensor, uint8_t id)
         p = fingerprintSensor.getImage();
     }
     Serial.print("ID ");
-    Serial.println(id);
+    Serial.println(enrolID);
     p = -1;
     Serial.println("Place same finger again");
     while (p != FINGERPRINT_OK)
@@ -89,7 +87,6 @@ uint8_t getFingerprintEnroll(Adafruit_Fingerprint fingerprintSensor, uint8_t id)
     }
 
     // OK success!
-
     p = fingerprintSensor.image2Tz(2);
     switch (p)
     {
@@ -115,7 +112,7 @@ uint8_t getFingerprintEnroll(Adafruit_Fingerprint fingerprintSensor, uint8_t id)
 
     // OK converted!
     Serial.print("Creating model for #");
-    Serial.println(id);
+    Serial.println(enrolID);
 
     p = fingerprintSensor.createModel();
     if (p == FINGERPRINT_OK)
@@ -139,8 +136,8 @@ uint8_t getFingerprintEnroll(Adafruit_Fingerprint fingerprintSensor, uint8_t id)
     }
 
     Serial.print("ID ");
-    Serial.println(id);
-    p = fingerprintSensor.storeModel(id);
+    Serial.println(enrolID);
+    p = fingerprintSensor.storeModel(enrolID);
     if (p == FINGERPRINT_OK)
     {
         Serial.println("Stored!");

@@ -3,15 +3,17 @@
     "configurations": [
         {
             "name": "Win32",
-            "compilerPath": "",
+            "compilerPath": "C:/msys64/mingw64/bin/gcc.exe",
             "compilerArgs": [],
             "intelliSenseMode": "",
             "includePath": [
-                "${workspaceFolder}/**"
+                "C:\\msys64\\mingw64\\include",
+                "C:\\Users\\Victor Momodu\\Documents\\Arduino\\libraries",
+                "C:/Users/Victor Momodu/Documents/Arduino/libraries/Adafruit_Fingerprint_Sensor_Library"
             ],
             "forcedInclude": [],
-            "cStandard": "",
-            "cppStandard": "",
+            "cStandard": "c11",
+            "cppStandard": "c++11",
             "defines": [
                 "_DEBUG",
                 "UNICODE",
