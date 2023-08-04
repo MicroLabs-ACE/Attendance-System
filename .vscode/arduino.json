@@ -1,0 +1,6 @@
+{
+    "board": "arduino:avr:uno",
+    "port": "COM13",
+    "programmer": "avrispmkii",
+    "sketch": "Attendance System.ino"
+}
