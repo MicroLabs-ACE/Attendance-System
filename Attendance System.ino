@@ -11,7 +11,8 @@ const char ENROL_ALL = 'F';
 
 const char VERIFY = 'V';
 const char VERIFY_ALL = 'W';
-const char STOP_VERIFY = 'S';
+
+const char STOP = 'S';
 
 const char DELETE = 'D';
 const char DELETE_ALL = 'C';
@@ -21,6 +22,8 @@ bool isEnteredOp = false;
 
 uint8_t enrolID = 0;
 uint8_t verifyID;
+
+bool isStopping;
 
 SoftwareSerial sensorSerial(TX, RX);
 Adafruit_Fingerprint fingerprintSensor = Adafruit_Fingerprint(&sensorSerial);
@@ -72,40 +75,91 @@ void loop()
         return;
       }
       enrolFingerprint(fingerprintSensor, enrolID);
+      Serial.print("Fingerprint has ");
+      Serial.print(fingerprintSensor.getTemplateCount());
+      Serial.println(" fingerprints in memory.");
       break;
 
     case ENROL_ALL:
+      Serial.println("Fingerprint sensor is now operating in burst enrol mode.");
+      Serial.print("Enter '");
+      Serial.print(STOP);
+      Serial.println("' to stop operation.");
+      while (true)
+      {
+        Serial.println("Ready to enroll a fingerprint!");
+        Serial.println("Please type in the ID # (from 1 to 127) you want to save this finger as...");
+        while (!Serial.available())
+          ;
+        enrolID = Serial.parseInt();
+        if (enrolID == 0)
+        {
+          return;
+        }
+
+        int p = -1;
+        p = fingerprintFirstImageCapture(fingerprintSensor, enrolID);
+        isStopping = shouldStop();
+        if (isStopping)
+        {
+          Serial.println("Burst mode ended!");
+          break;
+        }
+
+        p = fingerprintSecondImageCapture(fingerprintSensor, enrolID);
+        isStopping = shouldStop();
+        if (isStopping)
+        {
+          Serial.println("Burst mode ended!");
+          break;
+        }
+
+        p = fingerprintImageStorage(fingerprintSensor, enrolID);
+        isStopping = shouldStop();
+        if (isStopping)
+        {
+          Serial.println("Burst mode ended!");
+          break;
+        }
+      }
       break;
 
     // Verify
     case VERIFY:
-      if (fingerprintSensor.templateCount == 0)
+      if (fingerprintSensor.getTemplateCount() == 0)
       {
-        Serial.println("Sensor doesn't contain any fingerprint data. Please run the 'enrolFingerprint'.");
+        Serial.println("Sensor doesn't contain any fingerprint data. Please enrol fingerprints.");
       }
       else
       {
         Serial.println("Waiting for valid finger...");
         Serial.print("Sensor contains ");
-        Serial.print(fingerprintSensor.templateCount);
+        Serial.print(fingerprintSensor.getTemplateCount());
         Serial.println(" templates");
+        verifyID = verifyFingerprint(fingerprintSensor);
       }
-      verifyID = verifyFingerprint(fingerprintSensor);
       break;
 
     case VERIFY_ALL:
-      Serial.println("Fingerprint sensor is now operating in burst mode.");
+      Serial.println("Fingerprint sensor is now operating in burst verify mode.");
       Serial.print("Enter '");
-      Serial.print(STOP_VERIFY);
+      Serial.print(STOP);
       Serial.println("' to stop operation.");
 
-      while (true)
+      if (fingerprintSensor.getTemplateCount() == 0)
       {
-        verifyID = verifyAllFingerprint(fingerprintSensor);
-        if (Serial.available() > 0)
+        Serial.println("Sensor doesn't contain any fingerprint data. Please enrol fingerprints.");
+      }
+      else
+      {
+        while (true)
         {
-          char shouldStop = Serial.read();
-          if (shouldStop == STOP_VERIFY)
+          Serial.print("Sensor contains ");
+          Serial.print(fingerprintSensor.getTemplateCount());
+          Serial.println(" templates");
+          verifyID = verifyAllFingerprint(fingerprintSensor);
+          isStopping = shouldStop();
+          if (isStopping)
           {
             Serial.println("Burst mode ended!");
             break;
@@ -139,4 +193,17 @@ bool pingFingerprintSensor()
   {
     return false;
   }
+}
+
+bool shouldStop()
+{
+  if (Serial.available() > 0)
+  {
+    char shouldStop = Serial.read();
+    if (shouldStop == STOP)
+    {
+      return true;
+    }
+  }
+  return false;
 }

@@ -1,10 +1,8 @@
 #include <Adafruit_Fingerprint.h>
 
-uint8_t enrolFingerprint(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID)
+int fingerprintImageCapture(Adafruit_Fingerprint fingerprintSensor)
 {
     int p = -1;
-    Serial.print("Waiting for valid finger to enroll as #");
-    Serial.println(enrolID);
     while (p != FINGERPRINT_OK)
     {
         p = fingerprintSensor.getImage();
@@ -12,9 +10,8 @@ uint8_t enrolFingerprint(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID
         {
         case FINGERPRINT_OK:
             Serial.println("Image taken");
-            break;
+            return p;
         case FINGERPRINT_NOFINGER:
-            Serial.println(".");
             break;
         case FINGERPRINT_PACKETRECIEVEERR:
             Serial.println("Communication error");
@@ -27,14 +24,15 @@ uint8_t enrolFingerprint(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID
             break;
         }
     }
+}
 
-    // OK success!
-    p = fingerprintSensor.image2Tz(1);
+int fingerprintImageConversion(int p)
+{
     switch (p)
     {
     case FINGERPRINT_OK:
         Serial.println("Image converted");
-        break;
+        return p;
     case FINGERPRINT_IMAGEMESS:
         Serial.println("Image too messy");
         return p;
@@ -51,70 +49,45 @@ uint8_t enrolFingerprint(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID
         Serial.println("Unknown error");
         return p;
     }
+}
 
+int fingerprintFirstImageCapture(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID)
+{
+    Serial.print("Waiting for valid finger to enroll as #");
+    Serial.println(enrolID);
+
+    int p = fingerprintImageCapture(fingerprintSensor);
+    p = fingerprintSensor.image2Tz(1);
+    p = fingerprintImageConversion(p);
+
+    return p;
+}
+
+int fingerprintSecondImageCapture(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID)
+{
     Serial.println("Remove finger");
     delay(2000);
-    p = 0;
+    Serial.print("ID ");
+    Serial.println(enrolID);
+
+    int p = 0;
     while (p != FINGERPRINT_NOFINGER)
     {
         p = fingerprintSensor.getImage();
     }
-    Serial.print("ID ");
-    Serial.println(enrolID);
-    p = -1;
-    Serial.println("Place same finger again");
-    while (p != FINGERPRINT_OK)
-    {
-        p = fingerprintSensor.getImage();
-        switch (p)
-        {
-        case FINGERPRINT_OK:
-            Serial.println("Image taken");
-            break;
-        case FINGERPRINT_NOFINGER:
-            Serial.print(".");
-            break;
-        case FINGERPRINT_PACKETRECIEVEERR:
-            Serial.println("Communication error");
-            break;
-        case FINGERPRINT_IMAGEFAIL:
-            Serial.println("Imaging error");
-            break;
-        default:
-            Serial.println("Unknown error");
-            break;
-        }
-    }
-
-    // OK success!
+    p = fingerprintImageCapture(fingerprintSensor);
     p = fingerprintSensor.image2Tz(2);
-    switch (p)
-    {
-    case FINGERPRINT_OK:
-        Serial.println("Image converted");
-        break;
-    case FINGERPRINT_IMAGEMESS:
-        Serial.println("Image too messy");
-        return p;
-    case FINGERPRINT_PACKETRECIEVEERR:
-        Serial.println("Communication error");
-        return p;
-    case FINGERPRINT_FEATUREFAIL:
-        Serial.println("Could not find fingerprint features");
-        return p;
-    case FINGERPRINT_INVALIDIMAGE:
-        Serial.println("Could not find fingerprint features");
-        return p;
-    default:
-        Serial.println("Unknown error");
-        return p;
-    }
+    p = fingerprintImageConversion(p);
 
-    // OK converted!
+    return p;
+}
+
+int fingerprintImageStorage(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID)
+{
     Serial.print("Creating model for #");
     Serial.println(enrolID);
 
-    p = fingerprintSensor.createModel();
+    int p = fingerprintSensor.createModel();
     if (p == FINGERPRINT_OK)
     {
         Serial.println("Prints matched!");
@@ -135,8 +108,6 @@ uint8_t enrolFingerprint(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID
         return p;
     }
 
-    Serial.print("ID ");
-    Serial.println(enrolID);
     p = fingerprintSensor.storeModel(enrolID);
     if (p == FINGERPRINT_OK)
     {
@@ -164,4 +135,14 @@ uint8_t enrolFingerprint(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID
     }
 
     return true;
+}
+
+uint8_t enrolFingerprint(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID)
+{
+    int p = -1;
+    p = fingerprintFirstImageCapture(fingerprintSensor, enrolID);
+    p = fingerprintSecondImageCapture(fingerprintSensor, enrolID);
+    p = fingerprintImageStorage(fingerprintSensor, enrolID);
+
+    return p;
 }
