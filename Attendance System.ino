@@ -1,5 +1,5 @@
 #include <Adafruit_Fingerprint.h>
-#include "enrolFingerprint.h"
+#include "enrollFingerprint.h"
 #include "verifyFingerprint.h"
 
 const int TX = 4;
@@ -20,8 +20,8 @@ const char DELETE_ALL = 'C';
 char op_code;
 bool isEnteredOp = false;
 
-uint8_t enrolID = 0;
-uint8_t verifyID;
+uint8_t enrollId = 0;
+uint8_t verifyId;
 
 bool isStopping;
 
@@ -69,12 +69,12 @@ void loop()
       Serial.println("Please type in the ID # (from 1 to 127) you want to save this finger as...");
       while (!Serial.available())
         ;
-      enrolID = Serial.parseInt();
-      if (enrolID == 0)
+      enrollId = Serial.parseInt();
+      if (enrollId == 0)
       {
         return;
       }
-      enrolFingerprint(fingerprintSensor, enrolID);
+      enrollFingerprint(fingerprintSensor, enrollId);
       Serial.print("Fingerprint has ");
       Serial.print(fingerprintSensor.getTemplateCount());
       Serial.println(" fingerprints in memory.");
@@ -91,14 +91,14 @@ void loop()
         Serial.println("Please type in the ID # (from 1 to 127) you want to save this finger as...");
         while (!Serial.available())
           ;
-        enrolID = Serial.parseInt();
-        if (enrolID == 0)
+        enrollId = Serial.parseInt();
+        if (enrollId == 0)
         {
           return;
         }
 
         int p = -1;
-        p = fingerprintFirstImageCapture(fingerprintSensor, enrolID);
+        p = fingerprintFirstImageCapture(fingerprintSensor, enrollId);
         isStopping = shouldStop();
         if (isStopping)
         {
@@ -106,7 +106,7 @@ void loop()
           break;
         }
 
-        p = fingerprintSecondImageCapture(fingerprintSensor, enrolID);
+        p = fingerprintSecondImageCapture(fingerprintSensor, enrollId);
         isStopping = shouldStop();
         if (isStopping)
         {
@@ -114,7 +114,7 @@ void loop()
           break;
         }
 
-        p = fingerprintImageStorage(fingerprintSensor, enrolID);
+        p = fingerprintImageStorage(fingerprintSensor, enrollId);
         isStopping = shouldStop();
         if (isStopping)
         {
@@ -136,7 +136,7 @@ void loop()
         Serial.print("Sensor contains ");
         Serial.print(fingerprintSensor.getTemplateCount());
         Serial.println(" templates");
-        verifyID = verifyFingerprint(fingerprintSensor);
+        verifyId = verifyFingerprint(fingerprintSensor);
       }
       break;
 
@@ -157,7 +157,7 @@ void loop()
           Serial.print("Sensor contains ");
           Serial.print(fingerprintSensor.getTemplateCount());
           Serial.println(" templates");
-          verifyID = verifyAllFingerprint(fingerprintSensor);
+          verifyId = verifyAllFingerprint(fingerprintSensor);
           isStopping = shouldStop();
           if (isStopping)
           {

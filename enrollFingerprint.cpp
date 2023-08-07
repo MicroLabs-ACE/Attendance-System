@@ -51,10 +51,10 @@ int fingerprintImageConversion(int p)
     }
 }
 
-int fingerprintFirstImageCapture(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID)
+int fingerprintFirstImageCapture(Adafruit_Fingerprint fingerprintSensor, uint8_t enrollId)
 {
     Serial.print("Waiting for valid finger to enroll as #");
-    Serial.println(enrolID);
+    Serial.println(enrollId);
 
     int p = fingerprintImageCapture(fingerprintSensor);
     p = fingerprintSensor.image2Tz(1);
@@ -63,12 +63,12 @@ int fingerprintFirstImageCapture(Adafruit_Fingerprint fingerprintSensor, uint8_t
     return p;
 }
 
-int fingerprintSecondImageCapture(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID)
+int fingerprintSecondImageCapture(Adafruit_Fingerprint fingerprintSensor, uint8_t enrollId)
 {
     Serial.println("Remove finger");
     delay(2000);
     Serial.print("ID ");
-    Serial.println(enrolID);
+    Serial.println(enrollId);
 
     int p = 0;
     while (p != FINGERPRINT_NOFINGER)
@@ -82,10 +82,10 @@ int fingerprintSecondImageCapture(Adafruit_Fingerprint fingerprintSensor, uint8_
     return p;
 }
 
-int fingerprintImageStorage(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID)
+int fingerprintImageStorage(Adafruit_Fingerprint fingerprintSensor, uint8_t enrollId)
 {
     Serial.print("Creating model for #");
-    Serial.println(enrolID);
+    Serial.println(enrollId);
 
     int p = fingerprintSensor.createModel();
     if (p == FINGERPRINT_OK)
@@ -108,7 +108,7 @@ int fingerprintImageStorage(Adafruit_Fingerprint fingerprintSensor, uint8_t enro
         return p;
     }
 
-    p = fingerprintSensor.storeModel(enrolID);
+    p = fingerprintSensor.storeModel(enrollId);
     if (p == FINGERPRINT_OK)
     {
         Serial.println("Stored!");
@@ -137,12 +137,12 @@ int fingerprintImageStorage(Adafruit_Fingerprint fingerprintSensor, uint8_t enro
     return true;
 }
 
-uint8_t enrolFingerprint(Adafruit_Fingerprint fingerprintSensor, uint8_t enrolID)
+uint8_t enrollFingerprint(Adafruit_Fingerprint fingerprintSensor, uint8_t enrollId)
 {
     int p = -1;
-    p = fingerprintFirstImageCapture(fingerprintSensor, enrolID);
-    p = fingerprintSecondImageCapture(fingerprintSensor, enrolID);
-    p = fingerprintImageStorage(fingerprintSensor, enrolID);
+    p = fingerprintFirstImageCapture(fingerprintSensor, enrollId);
+    p = fingerprintSecondImageCapture(fingerprintSensor, enrollId);
+    p = fingerprintImageStorage(fingerprintSensor, enrollId);
 
     return p;
 }
