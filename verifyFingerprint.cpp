@@ -1,5 +1,30 @@
+/*!
+ * This is a library for verifying from an optical sensor
+ *
+ * Designed specifically to work with the Adafruit Fingerprint sensor
+ * ----> http://www.adafruit.com/products/751
+ *
+ * These displays use TTL Serial to communicate, 2 pins are required to
+ * interface
+ *
+ */
+
 #include <Adafruit_Fingerprint.h>
 
+/**************************************************************************/
+/*!
+    @brief verifies a fingerprint existence by getting the image and comparing it with the template in the db.
+    @param fingerprintSensor  Fingerprint sensor from which the fingerprint would be deleted.
+    @returns  Return the fingerprint id on success.
+    @returns <code>FINGERPRINT_PACKETRECIEVEERR</code> Returned on communication error.
+    @returns <code>FINGERPRINT_NOFINGER</code> Returned when no finger is detected.
+    @returns <code>FINGERPRINT_IMAGEFAIL</code> Returned when imaging failed.
+    @returns <code>FINGERPRINT_IMAGEMESS</code> Returned when image is messy.
+    @returns <code>FINGERPRINT_FEATUREFAIL</code> Returned when fingerprint feature is not found.
+    @returns <code>FINGERPRINT_INVALIDIMAGE</code> Returned when fingerprint feature is not found.
+    @returns <code>FINGERPRINT_NOTFOUND</code> Returned when fingerprint is not found in the db.
+*/
+/**************************************************************************/
 uint8_t verifyFingerprint(Adafruit_Fingerprint fingerprintSensor)
 {
     uint8_t p = fingerprintSensor.getImage();
@@ -78,7 +103,15 @@ uint8_t verifyFingerprint(Adafruit_Fingerprint fingerprintSensor)
     return fingerprintSensor.fingerID;
 }
 
-// returns -1 if failed, otherwise returns ID #
+/**************************************************************************/
+/*!
+    @brief verifies all the fingerprints entered. It is a faster form of the method verifyFingerprint
+    @param fingerprintSensor  Fingerprint sensor from which the fingerprint would be deleted.
+    @returns  Return the fingerprint id on success.
+    @returns -1 on failure to find fingerprint.
+*/
+/**************************************************************************/
+
 int verifyAllFingerprint(Adafruit_Fingerprint fingerprintSensor)
 {
     uint8_t p = fingerprintSensor.getImage();
