@@ -1,15 +1,18 @@
-// TODO: Implement verification
+// TODO: Implement burst operations for enroll and verify
 
 #include <Adafruit_Fingerprint.h>
 
 #define FINGERPRINT_ADDRESS_SIZE 127
 #define HAS_NO_FINGERPRINT 12
 
-SoftwareSerial sensorSerial(2, 3);
+const int TX = 2;
+const int RX = 3;
+
+SoftwareSerial sensorSerial(TX, RX);
 Adafruit_Fingerprint fingerprintSensor = Adafruit_Fingerprint(&sensorSerial);
 
-uint8_t id;
 bool isSensor;
+uint8_t id;
 String command;
 String result;
 
@@ -25,13 +28,9 @@ void setup()
   // Check if fingerprint is connected
   isSensor = fingerprintSensor.verifyPassword();
   if (isSensor)
-  {
     Serial.println("FingerprintSensorSuccess");
-  }
   else
-  {
-    Serial.println("FingerprintSensorFailure");
-  }
+    Serial.println("FingerprintSensorError");
 }
 
 void loop()
@@ -45,16 +44,19 @@ void loop()
       // Enroll
       if (command == "Enroll")
       {
-        id = readId();
-        if (!id)
+        result = fingerprintEnroll();
+        Serial.println(result);
+      }
+
+      else if (command == "BurstEnroll")
+      {
+        while (true)
         {
-          Serial.println("FingerprintStorageNotFound");
-        }
-        else
-        {
-          Serial.println("FingerprintStorageFound");
           result = fingerprintEnroll();
           Serial.println(result);
+
+          if (result == "OperationStopped")
+            break;
         }
       }
 
@@ -63,6 +65,18 @@ void loop()
       {
         result = fingerprintVerify();
         Serial.println(result);
+      }
+
+      else if (command == "BurstVerify")
+      {
+        while (true)
+        {
+          result = fingerprintVerify();
+          Serial.println(result);
+
+          if (result == "OperationStopped")
+            break;
+        }
       }
     }
   }
@@ -98,9 +112,15 @@ int readId(void)
 // Command operations
 String fingerprintEnroll()
 {
+  id = 0;
+  id = readId();
+  if (!id)
+    return "FingerprintStorageFullError";
+
   int p = -1; // Status checker
 
   // Await first fingerprint image
+  // DEBUG: Make into status message
   Serial.print("Waiting for valid finger at #");
   Serial.print(id);
   Serial.println("...");
@@ -125,6 +145,7 @@ String fingerprintEnroll()
     return "FingerprintConversionError";
 
   // Await second fingerprint image
+  // DEBUG: Make into status message
   Serial.println("Remove finger");
   delay(2000);
   p = 0;
@@ -155,7 +176,7 @@ String fingerprintEnroll()
   {
     if (p == FINGERPRINT_ENROLLMISMATCH)
     {
-      return "FingerprintEnrollMismatch";
+      return "FingerprintEnrollMismatchError";
     }
     else
     {
@@ -174,7 +195,7 @@ String fingerprintEnroll()
 
 String fingerprintVerify()
 {
-  int p = -1;
+  int p = -1; // Status checker
 
   // Fingerprint image capture
   while (p != FINGERPRINT_OK)
@@ -186,16 +207,15 @@ String fingerprintVerify()
       return "OperationStopped";
   }
 
-  if (p != FINGERPRINT_OK)
-    return "FingerprintCaptureError";
-
+  // Fingerprint image conversion
   p = fingerprintSensor.image2Tz();
   if (p != FINGERPRINT_OK)
     return "FingerprintConversionError";
 
+  // Fingerprint search
   p = fingerprintSensor.fingerSearch();
   if (p != FINGERPRINT_OK)
-    return "FingerprintVerifySuccess";
+    return "FingerprintVerifyError";
 
-  return "FingerprintVerifyFailure";
+  return "FingerprintVerifySuccess";
 }
