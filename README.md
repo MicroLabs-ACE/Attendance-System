@@ -19,6 +19,7 @@ The Arduino will perform the operation and respond over serial with a message in
 ## Usage
 
 Upon connection, the following messages can be sent:
+
 - _FingerprintSensorSuccess_ - indicates there is a valid fingerprint sensor.
 - _FingerprintSensorError_ - indicates there is no valid fingerprint sensor. No command can be carried out if this message is sent. Check connections (i.e. TX, RX, Voltage and GND pins) for fingerprint sensor and reconnect. If it persists, consult hardware engineer.
 
@@ -36,11 +37,11 @@ The Python program sends the following commands over serial:
 ### Enroll
 
 The enroll process requires the fingerprint to be scanned twice. Follow the prompts in the serial monitor.
-This can be canceled mid-enrollment by sending 'Stop' over serial.
+This can be canceled mid-enrollment by sending `Stop` over serial.
 
 The following messages can be sent:
 
-- _FingerprintStorageFull_ - indicates the no more fingerprints can be stored. Check fingerprint sensor product name to know storage capacity. Check ID selection for more information. You can run the 'Delete' or 'DeleteAll' command to free up space.
+- _FingerprintStorageFull_ - indicates the no more fingerprints can be stored. Check fingerprint sensor product name to know storage capacity. Check ID selection for more information. You can run the `Delete` or `DeleteAll` command to free up space.
 - _OperationStopped_ - indicates that a 'Stop' command was sent.
 - _FingerprintFirstCapture_ - indicates an enrollee's finger is being captured the first time.
 - _FingerprintSecondCapture_ - indicates an enrollee's finger is being captured the second time.
@@ -51,7 +52,7 @@ The following messages can be sent:
 ### Verify
 
 Simply place an already enrolled finger on the sensor when prompted.
-This can be canceled mid-enrollment by sending 'Stop' over serial.
+This can be canceled mid-enrollment by sending `Stop` over serial.
 
 The following messages can be sent:
 
@@ -66,7 +67,7 @@ No fingerprint scan is needed. Deletes either a single fingerprint or all finger
 
 The following messages can be sent:
 
-- _FingerprintStorageEmpty_ - indicates no fingerprints are in storage. Register fingerprints by running the 'Enroll' or 'BurstEnroll' command. If it still persists, consult hardware engineer.
+- _FingerprintStorageEmpty_ - indicates no fingerprints are in storage. Register fingerprints by running the `Enroll` or `BurstEnroll` command. If it still persists, consult hardware engineer.
 - _FingerprintDelete(All)Success_ - indicates fingerprint(s) has been successfully deleted.
 
 **ID selection** - The fingerprint storage works using a LIFO mechanism.
