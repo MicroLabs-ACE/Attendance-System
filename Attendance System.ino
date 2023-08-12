@@ -147,10 +147,7 @@ String fingerprintEnroll()
   int p = -1; // Status checker
 
   // Await first fingerprint image
-  // DEBUG: Make into status message
-  Serial.print("Waiting for valid finger at #");
-  Serial.print(id);
-  Serial.println("...");
+  Serial.println("FingerprintFirstCapture");
 
   // Check whether to stop
   if (shouldStop())
@@ -172,8 +169,8 @@ String fingerprintEnroll()
     return "FingerprintConversionError";
 
   // Await second fingerprint image
-  // DEBUG: Make into status message
-  Serial.println("Remove finger");
+  Serial.println("FingerprintSecondCapture");
+
   delay(2000);
   p = 0;
   while (p != FINGERPRINT_NOFINGER)
@@ -202,19 +199,16 @@ String fingerprintEnroll()
   if (p != FINGERPRINT_OK)
   {
     if (p == FINGERPRINT_ENROLLMISMATCH)
-    {
-      return "FingerprintEnrollMismatchError";
-    }
+      return "FingerprintEnrollMismatch";
+
     else
-    {
-      return "FingerprintEnrollUnknownError";
-    }
+      return "FingerprintEnrollError";
   }
 
   // Fingerprint model storage
   p = fingerprintSensor.storeModel(id);
   if (p != FINGERPRINT_OK)
-    return "FingerprintConversionError";
+    return "FingerprintEnrollError";
 
   // Fingerprint success
   return "FingerprintEnrollSuccess";
@@ -242,7 +236,7 @@ String fingerprintVerify()
   // Fingerprint search
   p = fingerprintSensor.fingerSearch();
   if (p != FINGERPRINT_OK)
-    return "FingerprintVerifyError";
+    return "FingerprintNotFound";
 
   return "FingerprintVerifySuccess";
 }
