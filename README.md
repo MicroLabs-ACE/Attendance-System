@@ -12,8 +12,8 @@ This Arduino sketch provides functions to enroll, verify, and delete fingerprint
 
 The Arduino will perform the operation and respond over serial with a message indicating
 
-- Success - ending with 'Success' indicates operation ended as it should.
-- Error - ending with 'Error' indicates operation didn't end as it should.
+- Success - ending with `Success` indicates operation ended as it should.
+- Error - ending with `Error` indicates operation didn't end as it should.
 - Information
 
 ## Usage
