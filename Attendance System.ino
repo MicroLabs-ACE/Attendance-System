@@ -1,4 +1,4 @@
-// TODO: Create a way to track ID for storing fingerprints
+// TODO: Integrate readId() in enroll
 
 #include <Adafruit_Fingerprint.h>
 
@@ -11,6 +11,7 @@ Adafruit_Fingerprint fingerprintSensor = Adafruit_Fingerprint(&sensorSerial);
 uint8_t id;
 bool isSensor;
 String command;
+String result;
 
 void setup()
 {
@@ -31,13 +32,37 @@ void setup()
   {
     Serial.println("FingerprintSensorFailure");
   }
-
-  Serial.print(readId());
 }
 
-String readId(void)
+void loop()
 {
-  id = 0;
+  if (isSensor)
+  {
+    if (Serial.available() > 0)
+    {
+      command = Serial.readStringUntil("\n");
+
+      if (command == "Enroll")
+      {
+        id = readId();
+        if (!id)
+        {
+          Serial.println("FingerprintStorageNotFound");
+        }
+        else
+        {
+          Serial.println("FingerprintStorageFound");
+          result = fingerprintEnroll();
+          Serial.println(result);
+        }
+      }
+    }
+  }
+}
+
+int readId(void)
+{
+  int id = 0;
   for (int addr = 1; addr <= FINGERPRINT_ADDRESS_SIZE; addr++)
   {
     if (fingerprintSensor.loadModel(addr) == HAS_NO_FINGERPRINT)
@@ -47,146 +72,108 @@ String readId(void)
     }
   }
 
-  if (!id)
-  {
-    return "FingerprintStorageNotFound";
-  }
-
-  return "FingerprintStorageFound";
+  return id;
 }
 
-// void loop()
-// {
-//   if (isSensor)
-//   {
-//     if (Serial.available() > 0)
-//     {
-//       command = Serial.readStringUntil("\n");
+String fingerprintEnroll()
+{
+  int p = -1; // Status checker
 
-//       if (command == "Enroll")
-//       {
-//         enroll();
-//       }
-//       else if (command == "BurstEnroll")
-//       {
-//         Serial.println("BurstEnroll");
-//       }
-//     }
-//   }
-// }
+  // Await first fingerprint image
+  Serial.print("Waiting for valid finger at #");
+  Serial.print(id);
+  Serial.println("...");
 
-// void enroll()
-// {
-//   Serial.println("> ");
-//   id = readId();
-//   if (id == 0)
-//   {
-//     return;
-//   }
+  // Check whether to stop
+  if (shouldStop())
+  {
+    return "OperationStopped";
+  }
 
-//   String result = getFingerprintEnroll(id);
-//   Serial.println(result);
-// }
+  // First fingerprint image capture
+  while (p != FINGERPRINT_OK)
+  {
+    p = fingerprintSensor.getImage();
 
-// String getFingerprintEnroll(int id)
-// {
-//   int p = -1; // Status checker
+    // Check whether to stop
+    if (shouldStop())
+    {
+      return "OperationStopped";
+    }
+  }
 
-//   // Await first fingerprint image
-//   Serial.print("Waiting for valid finger at ");
-//   Serial.print(id);
-//   Serial.println("...");
+  // First fingerprint image conversion
+  p = fingerprintSensor.image2Tz(1);
+  if (p != FINGERPRINT_OK)
+  {
+    return "FingerprintConversionError";
+  }
 
-//   // Check whether to stop
-//   if (shouldStop())
-//   {
-//     return "OperationStopped";
-//   }
+  // Await second fingerprint image
+  Serial.println("Remove finger");
+  delay(2000);
+  p = 0;
+  while (p != FINGERPRINT_NOFINGER)
+  {
+    p = fingerprintSensor.getImage();
+  }
 
-//   // First fingerprint image capture
-//   while (p != FINGERPRINT_OK)
-//   {
-//     p = fingerprintSensor.getImage();
+  p = -1;
+  Serial.println("Place same finger again");
 
-//     // Check whether to stop
-//     if (shouldStop())
-//     {
-//       return "OperationStopped";
-//     }
-//   }
+  // Second fingerprint image capture
+  while (p != FINGERPRINT_OK)
+  {
+    p = fingerprintSensor.getImage();
 
-//   // First fingerprint image conversion
-//   p = fingerprintSensor.image2Tz(1);
-//   if (p != FINGERPRINT_OK)
-//   {
-//     return "FingerprintConversionError";
-//   }
+    // Check whether to stop
+    if (shouldStop())
+    {
+      return "OperationStopped";
+    }
+  }
 
-//   // Await second fingerprint image
-//   Serial.println("Remove finger");
-//   delay(2000);
-//   p = 0;
-//   while (p != FINGERPRINT_NOFINGER)
-//   {
-//     p = fingerprintSensor.getImage();
-//   }
+  // Second fingerprint image conversion
+  p = fingerprintSensor.image2Tz(2);
+  if (p != FINGERPRINT_OK)
+  {
+    return "FingerprintConversionError";
+  }
 
-//   p = -1;
-//   Serial.println("Place same finger again");
+  // Fingerprint model creation
+  p = fingerprintSensor.createModel();
+  if (p != FINGERPRINT_OK)
+  {
+    if (p == FINGERPRINT_ENROLLMISMATCH)
+    {
+      return "FingerprintEnrollMismatch";
+    }
+    else
+    {
+      return "UnknownError";
+    }
+  }
 
-//   // Second fingerprint image capture
-//   while (p != FINGERPRINT_OK)
-//   {
-//     p = fingerprintSensor.getImage();
+  // Fingerprint model storage
+  p = fingerprintSensor.storeModel(id);
+  if (p != FINGERPRINT_OK)
+  {
+    return "FingerprintConversionError";
+  }
 
-//     // Check whether to stop
-//     if (shouldStop())
-//     {
-//       return "OperationStopped";
-//     }
-//   }
+  // Fingerprint success
+  return "FingerprintEnrollSuccess";
+}
 
-//   // Second fingerprint image conversion
-//   p = fingerprintSensor.image2Tz(2);
-//   if (p != FINGERPRINT_OK)
-//   {
-//     return "FingerprintConversionError";
-//   }
-
-//   // Fingerprint model creation
-//   p = fingerprintSensor.createModel();
-//   if (p != FINGERPRINT_OK)
-//   {
-//     if (p == FINGERPRINT_ENROLLMISMATCH)
-//     {
-//       return "FingerprintEnrollMismatch";
-//     }
-//     else
-//     {
-//       return "UnknownError";
-//     }
-//   }
-
-//   // Fingerprint model storage
-//   p = fingerprintSensor.storeModel(id);
-//   if (p != FINGERPRINT_OK)
-//   {
-//     return "FingerprintConversionError";
-//   }
-
-//   // Fingerprint success
-//   return "FingerprintEnrollSuccess";
-// }
-
-// bool shouldStop()
-// {
-//   if (Serial.available() > 0)
-//   {
-//     String stoppingCommand = Serial.readStringUntil("\n");
-//     if (stoppingCommand == "Stop")
-//     {
-//       return true;
-//     }
-//   }
-//   return false;
-// }
+bool shouldStop()
+{
+  if (Serial.available() > 0)
+  {
+    String stoppingCommand = Serial.readStringUntil("\n");
+    if (stoppingCommand == "Stop")
+    {
+      return true;
+    }
+  }
+  return false;
+}
