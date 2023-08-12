@@ -68,6 +68,6 @@ No fingerprint scan is needed. Deletes either a single fingerprint or all finger
 The following messages can be sent:
 
 - _FingerprintStorageEmpty_ - indicates no fingerprints are in storage. Register fingerprints by running the `Enroll` or `BurstEnroll` command. If it still persists, consult hardware engineer.
-- _FingerprintDelete(All)Success_ - indicates fingerprint(s) has been successfully deleted.
+- _FingerprintDelete(All)Success_ - indicates fingerprint(s) has/have been successfully deleted.
 
 **ID selection** - The fingerprint storage works using a LIFO mechanism.
