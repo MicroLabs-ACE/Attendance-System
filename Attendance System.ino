@@ -1,4 +1,4 @@
-// TODO: Integrate readId() in enroll
+// TODO: Implement verification
 
 #include <Adafruit_Fingerprint.h>
 
@@ -42,6 +42,7 @@ void loop()
     {
       command = Serial.readStringUntil("\n");
 
+      // Enroll
       if (command == "Enroll")
       {
         id = readId();
@@ -56,8 +57,27 @@ void loop()
           Serial.println(result);
         }
       }
+
+      // Verify
+      else if (command == "Verify")
+      {
+        result = fingerprintVerify();
+        Serial.println(result);
+      }
     }
   }
+}
+
+// Helper functions
+bool shouldStop()
+{
+  if (Serial.available() > 0)
+  {
+    String stoppingCommand = Serial.readStringUntil("\n");
+    if (stoppingCommand == "Stop")
+      return true;
+  }
+  return false;
 }
 
 int readId(void)
@@ -75,6 +95,7 @@ int readId(void)
   return id;
 }
 
+// Command operations
 String fingerprintEnroll()
 {
   int p = -1; // Status checker
@@ -86,9 +107,7 @@ String fingerprintEnroll()
 
   // Check whether to stop
   if (shouldStop())
-  {
     return "OperationStopped";
-  }
 
   // First fingerprint image capture
   while (p != FINGERPRINT_OK)
@@ -97,26 +116,20 @@ String fingerprintEnroll()
 
     // Check whether to stop
     if (shouldStop())
-    {
       return "OperationStopped";
-    }
   }
 
   // First fingerprint image conversion
   p = fingerprintSensor.image2Tz(1);
   if (p != FINGERPRINT_OK)
-  {
     return "FingerprintConversionError";
-  }
 
   // Await second fingerprint image
   Serial.println("Remove finger");
   delay(2000);
   p = 0;
   while (p != FINGERPRINT_NOFINGER)
-  {
     p = fingerprintSensor.getImage();
-  }
 
   p = -1;
   Serial.println("Place same finger again");
@@ -128,17 +141,13 @@ String fingerprintEnroll()
 
     // Check whether to stop
     if (shouldStop())
-    {
       return "OperationStopped";
-    }
   }
 
   // Second fingerprint image conversion
   p = fingerprintSensor.image2Tz(2);
   if (p != FINGERPRINT_OK)
-  {
     return "FingerprintConversionError";
-  }
 
   // Fingerprint model creation
   p = fingerprintSensor.createModel();
@@ -150,30 +159,43 @@ String fingerprintEnroll()
     }
     else
     {
-      return "UnknownError";
+      return "FingerprintEnrollUnknownError";
     }
   }
 
   // Fingerprint model storage
   p = fingerprintSensor.storeModel(id);
   if (p != FINGERPRINT_OK)
-  {
     return "FingerprintConversionError";
-  }
 
   // Fingerprint success
   return "FingerprintEnrollSuccess";
 }
 
-bool shouldStop()
+String fingerprintVerify()
 {
-  if (Serial.available() > 0)
+  int p = -1;
+
+  // Fingerprint image capture
+  while (p != FINGERPRINT_OK)
   {
-    String stoppingCommand = Serial.readStringUntil("\n");
-    if (stoppingCommand == "Stop")
-    {
-      return true;
-    }
+    p = fingerprintSensor.getImage();
+
+    // Check whether to stop
+    if (shouldStop())
+      return "OperationStopped";
   }
-  return false;
+
+  if (p != FINGERPRINT_OK)
+    return "FingerprintCaptureError";
+
+  p = fingerprintSensor.image2Tz();
+  if (p != FINGERPRINT_OK)
+    return "FingerprintConversionError";
+
+  p = fingerprintSensor.fingerSearch();
+  if (p != FINGERPRINT_OK)
+    return "FingerprintVerifySuccess";
+
+  return "FingerprintVerifyFailure";
 }
