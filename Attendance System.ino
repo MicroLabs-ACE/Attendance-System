@@ -15,6 +15,8 @@ uint8_t id;
 String command;
 String result;
 
+bool isOperationEnd = false;
+
 void setup()
 {
   // Serial setup
@@ -49,12 +51,13 @@ void loop()
 
       else if (command == "BurstEnroll")
       {
+        Serial.println("BurstEnroll");
         while (true)
         {
           result = fingerprintEnroll();
           Serial.println(result);
 
-          if (result == "OperationStopped")
+          if (isOperationEnd)
             break;
         }
       }
@@ -68,12 +71,13 @@ void loop()
 
       else if (command == "BurstVerify")
       {
+        Serial.println("BurstVerify");
         while (true)
         {
           result = fingerprintVerify();
           Serial.println(result);
 
-          if (result == "OperationStopped")
+          if (isOperationEnd)
             break;
         }
       }
@@ -150,7 +154,8 @@ String fingerprintEnroll()
   Serial.println("FingerprintFirstCapture");
 
   // Check whether to stop
-  if (shouldStop())
+  isOperationEnd = shouldStop();
+  if (isOperationEnd)
     return "OperationStopped";
 
   // First fingerprint image capture
@@ -159,7 +164,8 @@ String fingerprintEnroll()
     p = fingerprintSensor.getImage();
 
     // Check whether to stop
-    if (shouldStop())
+    isOperationEnd = shouldStop();
+    if (isOperationEnd)
       return "OperationStopped";
   }
 
@@ -185,7 +191,8 @@ String fingerprintEnroll()
     p = fingerprintSensor.getImage();
 
     // Check whether to stop
-    if (shouldStop())
+    isOperationEnd = shouldStop();
+    if (isOperationEnd)
       return "OperationStopped";
   }
 
@@ -224,7 +231,8 @@ String fingerprintVerify()
     p = fingerprintSensor.getImage();
 
     // Check whether to stop
-    if (shouldStop())
+    isOperationEnd = shouldStop();
+    if (isOperationEnd)
       return "OperationStopped";
   }
 
