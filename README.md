@@ -19,8 +19,8 @@ The Arduino will perform the operation and respond over serial with a message in
 ## Usage
 
 Upon connection, the following messages can be sent:
-FingerprintSensorSuccess - indicates there is a valid fingerprint sensor.
-FingerprintSensorError - indicates there is no valid fingerprint sensor. No command can be carried out if this message is sent. Check connections(i.e. TX, RX, Voltage and GND pins) for fingerprint sensor and reconnect. If it persists, consult hardware engineer.
+- _FingerprintSensorSuccess_ - indicates there is a valid fingerprint sensor.
+- _FingerprintSensorError_ - indicates there is no valid fingerprint sensor. No command can be carried out if this message is sent. Check connections(i.e. TX, RX, Voltage and GND pins) for fingerprint sensor and reconnect. If it persists, consult hardware engineer.
 
 The message is sent about two seconds after connection.
 
