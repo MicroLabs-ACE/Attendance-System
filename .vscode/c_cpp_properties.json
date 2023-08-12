@@ -556,9 +556,15 @@
         },
         {
             "name": "Arduino",
+            "compilerPath": "",
+            "compilerArgs": [],
+            "intelliSenseMode": "",
             "includePath": [
                 "${workspaceFolder}/**"
             ],
+            "forcedInclude": [],
+            "cStandard": "",
+            "cppStandard": "",
             "defines": [
                 "_DEBUG",
                 "UNICODE",

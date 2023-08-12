@@ -1,230 +1,271 @@
-/***************************************************
-  This is an example sketch for our optical Fingerprint sensor
-
-  Designed specifically to work with the Adafruit BMP085 Breakout
-  ----> http://www.adafruit.com/products/751
-
-  These displays use TTL Serial to communicate, 2 pins are required to
-  interface
-  Adafruit invests time and resources providing this open source code,
-  please support Adafruit and open-source hardware by purchasing
-  products from Adafruit!
-
-  Written by Limor Fried/Ladyada for Adafruit Industries.
-  BSD license, all text above must be included in any redistribution
- ****************************************************/
+// TODO: Implement delete operations
 
 #include <Adafruit_Fingerprint.h>
 
+#define FINGERPRINT_ADDRESS_SIZE 127
+#define HAS_FINGERPRINT 0
+#define HAS_NO_FINGERPRINT 12
 
-#if (defined(__AVR__) || defined(ESP8266)) && !defined(__AVR_ATmega2560__)
-// For UNO and others without hardware serial, we must use software serial...
-// pin #2 is IN from sensor (GREEN wire)
-// pin #3 is OUT from arduino  (WHITE wire)
-// Set up the serial port to use softwareserial..
-SoftwareSerial mySerial(2, 3);
+const int TX = 2;
+const int RX = 3;
 
-#else
-// On Leonardo/M0/etc, others with hardware serial, use hardware serial!
-// #0 is green wire, #1 is white
-#define mySerial Serial1
+SoftwareSerial sensorSerial(TX, RX);
+Adafruit_Fingerprint fingerprintSensor = Adafruit_Fingerprint(&sensorSerial);
 
-#endif
-
-
-Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
-
+bool isSensor;
 uint8_t id;
+String command;
+String result;
 
 void setup()
 {
+  // Serial setup
   Serial.begin(9600);
-  while (!Serial);  // For Yun/Leo/Micro/Zero/...
-  delay(100);
-  Serial.println("\n\nAdafruit Fingerprint sensor enrollment");
+  while (!Serial)
+    ;
+  delay(2000);
+  fingerprintSensor.begin(57600);
 
-  // set the data rate for the sensor serial port
-  finger.begin(57600);
-
-  if (finger.verifyPassword()) {
-    Serial.println("Found fingerprint sensor!");
-  } else {
-    Serial.println("Did not find fingerprint sensor :(");
-    while (1) { delay(1); }
-  }
-
-  Serial.println(F("Reading sensor parameters"));
-  finger.getParameters();
-  Serial.print(F("Status: 0x")); Serial.println(finger.status_reg, HEX);
-  Serial.print(F("Sys ID: 0x")); Serial.println(finger.system_id, HEX);
-  Serial.print(F("Capacity: ")); Serial.println(finger.capacity);
-  Serial.print(F("Security level: ")); Serial.println(finger.security_level);
-  Serial.print(F("Device address: ")); Serial.println(finger.device_addr, HEX);
-  Serial.print(F("Packet len: ")); Serial.println(finger.packet_len);
-  Serial.print(F("Baud rate: ")); Serial.println(finger.baud_rate);
+  // Check if fingerprint is connected
+  isSensor = fingerprintSensor.verifyPassword();
+  if (isSensor)
+    Serial.println("FingerprintSensorSuccess");
+  else
+    Serial.println("FingerprintSensorError");
 }
 
-uint8_t readnumber(void) {
-  uint8_t num = 0;
-
-  while (num == 0) {
-    while (! Serial.available());
-    num = Serial.parseInt();
-  }
-  return num;
-}
-
-void loop()                     // run over and over again
+void loop()
 {
-  Serial.println("Ready to enroll a fingerprint!");
-  Serial.println("Please type in the ID # (from 1 to 127) you want to save this finger as...");
-  id = readnumber();
-  if (id == 0) {// ID #0 not allowed, try again!
-     return;
-  }
-  Serial.print("Enrolling ID #");
-  Serial.println(id);
+  if (isSensor)
+  {
+    if (Serial.available() > 0)
+    {
+      command = Serial.readStringUntil("\n");
 
-  while (!  getFingerprintEnroll() );
+      // Enroll
+      if (command == "Enroll")
+      {
+        result = fingerprintEnroll();
+        Serial.println(result);
+      }
+
+      else if (command == "BurstEnroll")
+      {
+        while (true)
+        {
+          result = fingerprintEnroll();
+          Serial.println(result);
+
+          if (result == "OperationStopped")
+            break;
+        }
+      }
+
+      // Verify
+      else if (command == "Verify")
+      {
+        result = fingerprintVerify();
+        Serial.println(result);
+      }
+
+      else if (command == "BurstVerify")
+      {
+        while (true)
+        {
+          result = fingerprintVerify();
+          Serial.println(result);
+
+          if (result == "OperationStopped")
+            break;
+        }
+      }
+
+      // Delete
+      else if (command == "Delete")
+      {
+        result = fingerprintDelete(false);
+        Serial.println(result);
+      }
+
+      else if (command == "DeleteAll")
+      {
+        result = fingerprintDelete(true);
+        Serial.println(result);
+      }
+    }
+  }
 }
 
-uint8_t getFingerprintEnroll() {
+// Helper functions
+bool shouldStop()
+{
+  if (Serial.available() > 0)
+  {
+    String stoppingCommand = Serial.readStringUntil("\n");
+    if (stoppingCommand == "Stop")
+      return true;
+  }
+  return false;
+}
 
-  int p = -1;
-  Serial.print("Waiting for valid finger to enroll as #"); Serial.println(id);
-  while (p != FINGERPRINT_OK) {
-    p = finger.getImage();
-    switch (p) {
-    case FINGERPRINT_OK:
-      Serial.println("Image taken");
-      break;
-    case FINGERPRINT_NOFINGER:
-      Serial.println(".");
-      break;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      Serial.println("Communication error");
-      break;
-    case FINGERPRINT_IMAGEFAIL:
-      Serial.println("Imaging error");
-      break;
-    default:
-      Serial.println("Unknown error");
-      break;
+int readId(bool isEnroll)
+{
+  int id = 0;
+
+  if (isEnroll)
+  {
+    for (int addr = 1; addr <= FINGERPRINT_ADDRESS_SIZE; addr++)
+    {
+      if (fingerprintSensor.loadModel(addr) == HAS_NO_FINGERPRINT)
+      {
+        id = addr;
+        break;
+      }
+    }
+  }
+  else
+  {
+    for (int addr = FINGERPRINT_ADDRESS_SIZE; addr >= 1; addr--)
+    {
+      if (fingerprintSensor.loadModel(addr) == HAS_FINGERPRINT)
+      {
+        id = addr;
+        break;
+      }
     }
   }
 
-  // OK success!
+  return id;
+}
 
-  p = finger.image2Tz(1);
-  switch (p) {
-    case FINGERPRINT_OK:
-      Serial.println("Image converted");
-      break;
-    case FINGERPRINT_IMAGEMESS:
-      Serial.println("Image too messy");
-      return p;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      Serial.println("Communication error");
-      return p;
-    case FINGERPRINT_FEATUREFAIL:
-      Serial.println("Could not find fingerprint features");
-      return p;
-    case FINGERPRINT_INVALIDIMAGE:
-      Serial.println("Could not find fingerprint features");
-      return p;
-    default:
-      Serial.println("Unknown error");
-      return p;
+// Command operations
+String fingerprintEnroll()
+{
+  id = 0;
+  id = readId(true);
+  if (!id)
+    return "FingerprintStorageFull";
+
+  int p = -1; // Status checker
+
+  // Await first fingerprint image
+  // DEBUG: Make into status message
+  Serial.print("Waiting for valid finger at #");
+  Serial.print(id);
+  Serial.println("...");
+
+  // Check whether to stop
+  if (shouldStop())
+    return "OperationStopped";
+
+  // First fingerprint image capture
+  while (p != FINGERPRINT_OK)
+  {
+    p = fingerprintSensor.getImage();
+
+    // Check whether to stop
+    if (shouldStop())
+      return "OperationStopped";
   }
 
+  // First fingerprint image conversion
+  p = fingerprintSensor.image2Tz(1);
+  if (p != FINGERPRINT_OK)
+    return "FingerprintConversionError";
+
+  // Await second fingerprint image
+  // DEBUG: Make into status message
   Serial.println("Remove finger");
   delay(2000);
   p = 0;
-  while (p != FINGERPRINT_NOFINGER) {
-    p = finger.getImage();
-  }
-  Serial.print("ID "); Serial.println(id);
+  while (p != FINGERPRINT_NOFINGER)
+    p = fingerprintSensor.getImage();
+
   p = -1;
   Serial.println("Place same finger again");
-  while (p != FINGERPRINT_OK) {
-    p = finger.getImage();
-    switch (p) {
-    case FINGERPRINT_OK:
-      Serial.println("Image taken");
-      break;
-    case FINGERPRINT_NOFINGER:
-      Serial.print(".");
-      break;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      Serial.println("Communication error");
-      break;
-    case FINGERPRINT_IMAGEFAIL:
-      Serial.println("Imaging error");
-      break;
-    default:
-      Serial.println("Unknown error");
-      break;
+
+  // Second fingerprint image capture
+  while (p != FINGERPRINT_OK)
+  {
+    p = fingerprintSensor.getImage();
+
+    // Check whether to stop
+    if (shouldStop())
+      return "OperationStopped";
+  }
+
+  // Second fingerprint image conversion
+  p = fingerprintSensor.image2Tz(2);
+  if (p != FINGERPRINT_OK)
+    return "FingerprintConversionError";
+
+  // Fingerprint model creation
+  p = fingerprintSensor.createModel();
+  if (p != FINGERPRINT_OK)
+  {
+    if (p == FINGERPRINT_ENROLLMISMATCH)
+    {
+      return "FingerprintEnrollMismatchError";
+    }
+    else
+    {
+      return "FingerprintEnrollUnknownError";
     }
   }
 
-  // OK success!
+  // Fingerprint model storage
+  p = fingerprintSensor.storeModel(id);
+  if (p != FINGERPRINT_OK)
+    return "FingerprintConversionError";
 
-  p = finger.image2Tz(2);
-  switch (p) {
-    case FINGERPRINT_OK:
-      Serial.println("Image converted");
-      break;
-    case FINGERPRINT_IMAGEMESS:
-      Serial.println("Image too messy");
-      return p;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      Serial.println("Communication error");
-      return p;
-    case FINGERPRINT_FEATUREFAIL:
-      Serial.println("Could not find fingerprint features");
-      return p;
-    case FINGERPRINT_INVALIDIMAGE:
-      Serial.println("Could not find fingerprint features");
-      return p;
-    default:
-      Serial.println("Unknown error");
-      return p;
+  // Fingerprint success
+  return "FingerprintEnrollSuccess";
+}
+
+String fingerprintVerify()
+{
+  int p = -1; // Status checker
+
+  // Fingerprint image capture
+  while (p != FINGERPRINT_OK)
+  {
+    p = fingerprintSensor.getImage();
+
+    // Check whether to stop
+    if (shouldStop())
+      return "OperationStopped";
   }
 
-  // OK converted!
-  Serial.print("Creating model for #");  Serial.println(id);
+  // Fingerprint image conversion
+  p = fingerprintSensor.image2Tz();
+  if (p != FINGERPRINT_OK)
+    return "FingerprintConversionError";
 
-  p = finger.createModel();
-  if (p == FINGERPRINT_OK) {
-    Serial.println("Prints matched!");
-  } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
-    Serial.println("Communication error");
-    return p;
-  } else if (p == FINGERPRINT_ENROLLMISMATCH) {
-    Serial.println("Fingerprints did not match");
-    return p;
-  } else {
-    Serial.println("Unknown error");
-    return p;
+  // Fingerprint search
+  p = fingerprintSensor.fingerSearch();
+  if (p != FINGERPRINT_OK)
+    return "FingerprintVerifyError";
+
+  return "FingerprintVerifySuccess";
+}
+
+String fingerprintDelete(bool shouldDeleteAll)
+{
+  id = 0;
+  id = readId(false);
+  if (!id)
+    return "FingerprintStorageEmpty";
+
+  if (shouldDeleteAll)
+  {
+    fingerprintSensor.emptyDatabase();
+    return "FingerprintDeleteAllSuccess";
   }
 
-  Serial.print("ID "); Serial.println(id);
-  p = finger.storeModel(id);
-  if (p == FINGERPRINT_OK) {
-    Serial.println("Stored!");
-  } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
-    Serial.println("Communication error");
-    return p;
-  } else if (p == FINGERPRINT_BADLOCATION) {
-    Serial.println("Could not store in that location");
-    return p;
-  } else if (p == FINGERPRINT_FLASHERR) {
-    Serial.println("Error writing to flash");
-    return p;
-  } else {
-    Serial.println("Unknown error");
-    return p;
-  }
+  else
+  {
+    fingerprintSensor.deleteModel(id);
 
-  return true;
+    return "FingerprintDeleteSuccess";
+  }
 }
