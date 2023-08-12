@@ -1,8 +1,9 @@
-// TODO: Implement burst operations for enroll and verify
+// TODO: Implement delete operations
 
 #include <Adafruit_Fingerprint.h>
 
 #define FINGERPRINT_ADDRESS_SIZE 127
+#define HAS_FINGERPRINT 0
 #define HAS_NO_FINGERPRINT 12
 
 const int TX = 2;
@@ -78,6 +79,19 @@ void loop()
             break;
         }
       }
+
+      // Delete
+      else if (command == "Delete")
+      {
+        result = fingerprintDelete(false);
+        Serial.println(result);
+      }
+
+      else if (command == "DeleteAll")
+      {
+        result = fingerprintDelete(true);
+        Serial.println(result);
+      }
     }
   }
 }
@@ -94,15 +108,30 @@ bool shouldStop()
   return false;
 }
 
-int readId(void)
+int readId(bool isEnroll)
 {
   int id = 0;
-  for (int addr = 1; addr <= FINGERPRINT_ADDRESS_SIZE; addr++)
+
+  if (isEnroll)
   {
-    if (fingerprintSensor.loadModel(addr) == HAS_NO_FINGERPRINT)
+    for (int addr = 1; addr <= FINGERPRINT_ADDRESS_SIZE; addr++)
     {
-      id = addr;
-      break;
+      if (fingerprintSensor.loadModel(addr) == HAS_NO_FINGERPRINT)
+      {
+        id = addr;
+        break;
+      }
+    }
+  }
+  else
+  {
+    for (int addr = FINGERPRINT_ADDRESS_SIZE; addr >= 1; addr--)
+    {
+      if (fingerprintSensor.loadModel(addr) == HAS_FINGERPRINT)
+      {
+        id = addr;
+        break;
+      }
     }
   }
 
@@ -113,9 +142,9 @@ int readId(void)
 String fingerprintEnroll()
 {
   id = 0;
-  id = readId();
+  id = readId(true);
   if (!id)
-    return "FingerprintStorageFullError";
+    return "FingerprintStorageFull";
 
   int p = -1; // Status checker
 
@@ -218,4 +247,25 @@ String fingerprintVerify()
     return "FingerprintVerifyError";
 
   return "FingerprintVerifySuccess";
+}
+
+String fingerprintDelete(bool shouldDeleteAll)
+{
+  id = 0;
+  id = readId(false);
+  if (!id)
+    return "FingerprintStorageEmpty";
+
+  if (shouldDeleteAll)
+  {
+    fingerprintSensor.emptyDatabase();
+    return "FingerprintDeleteAllSuccess";
+  }
+
+  else
+  {
+    fingerprintSensor.deleteModel(id);
+
+    return "FingerprintDeleteSuccess";
+  }
 }
