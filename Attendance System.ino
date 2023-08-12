@@ -1,5 +1,3 @@
-// TODO: Implement delete operations
-
 #include <Adafruit_Fingerprint.h>
 
 #define FINGERPRINT_ADDRESS_SIZE 127
