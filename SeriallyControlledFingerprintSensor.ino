@@ -1,16 +1,19 @@
 // TODO: Implement timeout for enroll and verify operations
 
 #include <Adafruit_Fingerprint.h>
+#include <StopWatch.h>
 
 #define FINGERPRINT_ADDRESS_SIZE 127
 #define HAS_FINGERPRINT 0
 #define HAS_NO_FINGERPRINT 12
+#define TIMEOUT 2000
 
 const int TX = 2;
 const int RX = 3;
 
 SoftwareSerial sensorSerial(TX, RX);
 Adafruit_Fingerprint fingerprintSensor = Adafruit_Fingerprint(&sensorSerial);
+StopWatch stopWatch;
 
 bool isSensor;
 uint8_t id;
@@ -43,11 +46,12 @@ void loop()
     if (Serial.available() > 0)
     {
       command = Serial.readStringUntil("\n");
+      stopWatch.reset();
 
       // Enroll
       if (command == "Enroll")
       {
-        result = fingerprintEnroll();
+        result = enrollFingerprint();
         Serial.println(result);
       }
 
@@ -56,7 +60,7 @@ void loop()
         Serial.println("BurstEnroll");
         while (true)
         {
-          result = fingerprintEnroll();
+          result = enrollFingerprint();
           Serial.println(result);
 
           if (isOperationEnd)
@@ -67,7 +71,7 @@ void loop()
       // Verify
       else if (command == "Verify")
       {
-        result = fingerprintVerify();
+        result = verifyFingerprint();
         Serial.println(result);
       }
 
@@ -76,7 +80,7 @@ void loop()
         Serial.println("BurstVerify");
         while (true)
         {
-          result = fingerprintVerify();
+          result = verifyFingerprint();
           Serial.println(result);
 
           if (isOperationEnd)
@@ -87,13 +91,13 @@ void loop()
       // Delete
       else if (command == "Delete")
       {
-        result = fingerprintDelete(false);
+        result = deleteFingerprint(false);
         Serial.println(result);
       }
 
       else if (command == "DeleteAll")
       {
-        result = fingerprintDelete(true);
+        result = deleteFingerprint(true);
         Serial.println(result);
       }
     }
@@ -109,6 +113,16 @@ bool shouldStop()
     if (stoppingCommand == "Stop")
       return true;
   }
+  return false;
+}
+bool shouldTimeout()
+{
+  if (!stopWatch.isRunning())
+    stopWatch.start();
+
+  if (stopWatch.elapsed() >= TIMEOUT)
+    return true;
+
   return false;
 }
 
@@ -143,7 +157,7 @@ int readId(bool isEnroll)
 }
 
 // Command operations
-String fingerprintEnroll()
+String enrollFingerprint()
 {
   id = 0;
   id = readId(true);
@@ -160,6 +174,10 @@ String fingerprintEnroll()
   if (isOperationEnd)
     return "OperationStopped";
 
+  isOperationEnd = shouldTimeout();
+  if (isOperationEnd)
+    return "OperationTimeout";
+
   // First fingerprint image capture
   while (p != FINGERPRINT_OK)
   {
@@ -169,6 +187,10 @@ String fingerprintEnroll()
     isOperationEnd = shouldStop();
     if (isOperationEnd)
       return "OperationStopped";
+
+    isOperationEnd = shouldTimeout();
+    if (isOperationEnd)
+      return "OperationTimeout";
   }
 
   // First fingerprint image conversion
@@ -176,16 +198,15 @@ String fingerprintEnroll()
   if (p != FINGERPRINT_OK)
     return "FingerprintConversionError";
 
-  // Await second fingerprint image
-  Serial.println("FingerprintSecondCapture");
-
+  // Waiting for removal of finger
   delay(2000);
   p = 0;
   while (p != FINGERPRINT_NOFINGER)
     p = fingerprintSensor.getImage();
-
   p = -1;
-  Serial.println("Place same finger again");
+
+  // Await second fingerprint image
+  Serial.println("FingerprintSecondCapture");
 
   // Second fingerprint image capture
   while (p != FINGERPRINT_OK)
@@ -196,6 +217,10 @@ String fingerprintEnroll()
     isOperationEnd = shouldStop();
     if (isOperationEnd)
       return "OperationStopped";
+
+    isOperationEnd = shouldTimeout();
+    if (isOperationEnd)
+      return "OperationTimeout";
   }
 
   // Second fingerprint image conversion
@@ -223,7 +248,7 @@ String fingerprintEnroll()
   return "FingerprintEnrollSuccess";
 }
 
-String fingerprintVerify()
+String verifyFingerprint()
 {
   int p = -1; // Status checker
 
@@ -236,6 +261,10 @@ String fingerprintVerify()
     isOperationEnd = shouldStop();
     if (isOperationEnd)
       return "OperationStopped";
+
+    isOperationEnd = shouldTimeout();
+    if (isOperationEnd)
+      return "OperationTimeout";
   }
 
   // Fingerprint image conversion
@@ -251,7 +280,7 @@ String fingerprintVerify()
   return "FingerprintVerifySuccess";
 }
 
-String fingerprintDelete(bool shouldDeleteAll)
+String deleteFingerprint(bool shouldDeleteAll)
 {
   id = 0;
   id = readId(false);
@@ -267,7 +296,6 @@ String fingerprintDelete(bool shouldDeleteAll)
   else
   {
     fingerprintSensor.deleteModel(id);
-
     return "FingerprintDeleteSuccess";
   }
 }
