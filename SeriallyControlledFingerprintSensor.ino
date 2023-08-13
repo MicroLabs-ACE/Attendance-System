@@ -1,12 +1,10 @@
-// TODO: Implement timeout for enroll and verify operations
-
 #include <Adafruit_Fingerprint.h>
 #include <StopWatch.h>
 
 #define FINGERPRINT_ADDRESS_SIZE 127
 #define HAS_FINGERPRINT 0
 #define HAS_NO_FINGERPRINT 12
-#define TIMEOUT 2000
+#define TIMEOUT 500000
 
 const int TX = 2;
 const int RX = 3;

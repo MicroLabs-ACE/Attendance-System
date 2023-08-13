@@ -43,6 +43,7 @@ The following messages can be sent:
 
 - _FingerprintStorageFull_ - indicates the no more fingerprints can be stored. Check fingerprint sensor product name to know storage capacity. Check ID selection for more information. You can run the `Delete` or `DeleteAll` command to free up space.
 - _OperationStopped_ - indicates that a 'Stop' command was sent.
+- _OperationTimeout_ - indicates that an operation has timed out after 5000s of inactivity. Consult hardware engineer to change timeout value.
 - _FingerprintFirstCapture_ - indicates an enrollee's finger is being captured the first time.
 - _FingerprintSecondCapture_ - indicates an enrollee's finger is being captured the second time.
 - _FingerprintConversionError_ - indicates fingerprint image could not be converted. If it persists, consult hardware engineer.
@@ -58,6 +59,7 @@ This can be canceled mid-enrollment by sending `Stop` over serial.
 The following messages can be sent:
 
 - _OperationStopped_ - indicates that a 'Stop' command was sent.
+- _OperationTimeout_ - indicates that an operation has timed out after 5000s of inactivity. Consult hardware engineer to change timeout value.
 - _FingerprintConversionError_ - indicates fingerprint image could not be converted. If it persists, consult hardware engineer.
 - _FingerprintNotFound_ - indicates that fingerprint is not registered on fingerprint sensor. If it persists, try enrolling again. If it still persists, consult hardware engineer.
 - _FingerprintVerifySuccess_ - indicates fingerprint was found.
@@ -72,4 +74,4 @@ The following messages can be sent:
 - _FingerprintStorageEmpty_ - indicates no fingerprints are in storage. Register fingerprints by running the `Enroll` or `BurstEnroll` command. If it still persists, consult hardware engineer.
 - _FingerprintDelete(All)Success_ - indicates fingerprint(s) has/have been successfully deleted.
 
-**ID selection** - The fingerprint storage works using a LIFO mechanism.
+**ID selection** - The fingerprint storage works using a LIFO (i.e. stack) mechanism.
