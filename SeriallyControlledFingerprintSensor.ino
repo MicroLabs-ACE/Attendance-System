@@ -1,3 +1,5 @@
+// TODO: Implement timeout for enroll and verify operations
+
 #include <Adafruit_Fingerprint.h>
 
 #define FINGERPRINT_ADDRESS_SIZE 127

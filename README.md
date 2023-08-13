@@ -34,7 +34,7 @@ The Python program sends the following commands over serial:
 - **DeleteAll** - Delete all fingerprints
 - **Stop** - Stops a command's execution mid-operation
 
-### Enroll
+### Enroll/BurstEnroll
 
 The enroll process requires the fingerprint to be scanned twice. Follow the prompts in the serial monitor.
 This can be canceled mid-enrollment by sending `Stop` over serial.
@@ -48,8 +48,9 @@ The following messages can be sent:
 - _FingerprintConversionError_ - indicates fingerprint image could not be converted. If it persists, consult hardware engineer.
 - _FingerprintEnrollMismatch_ - indicates fingerprints from first capture and second capture didn't match. Clean fingerprint sensor surface as well as finger of enrollee and try again. Ensure enrollee's finger is the same and is placed properly. If it persists, consult hardware engineer.
 - _FingerprintEnrollError_ - indicates an error occurred during fingerprint model creation or storage. If it persists, consult hardware engineer.
+- _BurstEnroll_ - indicates that burst enroll has begun.
 
-### Verify
+### Verify/BurstVerify
 
 Simply place an already enrolled finger on the sensor when prompted.
 This can be canceled mid-enrollment by sending `Stop` over serial.
@@ -60,6 +61,7 @@ The following messages can be sent:
 - _FingerprintConversionError_ - indicates fingerprint image could not be converted. If it persists, consult hardware engineer.
 - _FingerprintNotFound_ - indicates that fingerprint is not registered on fingerprint sensor. If it persists, try enrolling again. If it still persists, consult hardware engineer.
 - _FingerprintVerifySuccess_ - indicates fingerprint was found.
+- _BurstVerify_ - indicates that burst verify has begun.
 
 ### Delete/DeleteAll
 
