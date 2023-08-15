@@ -5,6 +5,7 @@ This Arduino sketch provides functions to enroll, verify, and delete fingerprint
 ## Setup
 
 - Connect the fingerprint sensor to the Arduino using the TX, RX, Voltage and GND pins.
+- Note that by default TX is pin 2 and RX is pin 3.
 - Upload the Arduino sketch to the board.
 - The baudrate should be sent to 9600.
 
