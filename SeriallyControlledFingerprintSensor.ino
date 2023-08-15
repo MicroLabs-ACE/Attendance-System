@@ -59,6 +59,7 @@ void setup() {
   Serial.begin(9600);
   while (!Serial)
     ;
+
   delay(DELAY);
   fingerprintSensor.begin(57600);
 
@@ -70,13 +71,13 @@ void setup() {
     Serial.println(FINGERPRINT_SENSOR_ERROR);
 }
 
-void loop() {
-  if (isSensor) {
-    if (Serial.available() > 0) {
+void loop()
+{
+  if (isSensor)
+  {
+    if (Serial.available() > 0)
+    {
       command = Serial.readStringUntil(NEW_LINE_DELIMITER);
-      // DEBUG
-      Serial.print("Command: ");
-      Serial.println(command);
       resetTimeout();
 
       // Enroll
@@ -91,6 +92,7 @@ void loop() {
         Serial.println(BURST_ENROLL);
         while (true)
         {
+
           result = enrollFingerprint();
           Serial.println(result);
 
@@ -126,7 +128,7 @@ void loop() {
         Serial.println(result);
       }
 
-      else if (command == "DeleteAll")
+      else if (command == DELETE_ALL)
       {
         result = deleteFingerprint(true);
         Serial.println(result);
@@ -155,6 +157,7 @@ bool shouldTimeout()
 
   return false;
 }
+
 
 void resetTimeout()
 {
