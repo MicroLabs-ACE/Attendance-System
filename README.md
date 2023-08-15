@@ -26,7 +26,7 @@ Upon connection, the following messages can be sent:
 
 The message is sent about two seconds after connection.
 
-The Python program sends the following commands over serial:
+The Python program sends the following commands over serial. They should be sent with a newline delimiter:
 
 - **Enroll** - Enroll a new fingerprint.
 - **Verify** - Verify a fingerprint
@@ -47,6 +47,7 @@ The following messages can be sent:
 - _OperationTimeout_ - indicates that an operation has timed out after 5000s of inactivity. Consult hardware engineer to change timeout value.
 - _FingerprintFirstCapture_ - indicates an enrollee's finger is being captured the first time.
 - _FingerprintSecondCapture_ - indicates an enrollee's finger is being captured the second time.
+- _FingerprintEnrollStart_ - indicates an enroll process has started.
 - _FingerprintConversionError_ - indicates fingerprint image could not be converted. If it persists, consult hardware engineer.
 - _FingerprintEnrollMismatch_ - indicates fingerprints from first capture and second capture didn't match. Clean fingerprint sensor surface as well as finger of enrollee and try again. Ensure enrollee's finger is the same and is placed properly. If it persists, consult hardware engineer.
 - _FingerprintEnrollError_ - indicates an error occurred during fingerprint model creation or storage. If it persists, consult hardware engineer.
@@ -60,8 +61,9 @@ This can be canceled mid-enrollment by sending `Stop` over serial.
 The following messages can be sent:
 
 - _OperationStopped_ - indicates that a 'Stop' command was sent.
-- _OperationTimeout_ - indicates that an operation has timed out after 5000s of inactivity. Consult hardware engineer to change timeout value.
+- _OperationTimeout_ - indicates that an operation has timed out after 3 minutes of inactivity. Consult hardware engineer to change timeout value.
 - _FingerprintConversionError_ - indicates fingerprint image could not be converted. If it persists, consult hardware engineer.
+- _FingerprintVerifyStart_ - indicates a verify process has started.
 - _FingerprintNotFound_ - indicates that fingerprint is not registered on fingerprint sensor. If it persists, try enrolling again. If it still persists, consult hardware engineer.
 - _FingerprintVerifySuccess_ - indicates fingerprint was found.
 - _BurstVerify_ - indicates that burst verify has begun.
