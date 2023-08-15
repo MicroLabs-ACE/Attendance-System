@@ -47,7 +47,7 @@
 #define FINGERPRINT_VERIFY_SUCCESS "FingerprintVerifySuccess"
 
 #define FINGERPRINT_NOT_FOUND "FingerprintNotFound"
-#define FINGERPRINT_ALREADY_EXIST "FingerprintAlreadtExists"
+#define FINGERPRINT_ALREADY_EXIST "FingerprintAlreadyExists"
 
 #define FINGERPRINT_DELETE_SUCCESS "FingerprintDeleteSuccess"
 #define FINGERPRINT_DELETE_ALL_SUCCESS "FingerprintDeleteAllSuccess"
