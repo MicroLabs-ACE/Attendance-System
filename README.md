@@ -44,7 +44,7 @@ The following messages can be sent:
 
 - _FingerprintStorageFull_ - indicates the no more fingerprints can be stored. Check fingerprint sensor product name to know storage capacity. Check ID selection for more information. You can run the `Delete` or `DeleteAll` command to free up space.
 - _OperationStopped_ - indicates that a 'Stop' command was sent.
-- _OperationTimeout_ - indicates that an operation has timed out after 5000s of inactivity. Consult hardware engineer to change timeout value.
+- _OperationTimeout_ - indicates that an operation has timed out after 3 minutes of inactivity. Consult hardware engineer to change timeout value.
 - _FingerprintFirstCapture_ - indicates an enrollee's finger is being captured the first time.
 - _FingerprintSecondCapture_ - indicates an enrollee's finger is being captured the second time.
 - _FingerprintEnrollStart_ - indicates an enroll process has started.
