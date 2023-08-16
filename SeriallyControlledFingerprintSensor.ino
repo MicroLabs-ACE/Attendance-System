@@ -134,6 +134,9 @@ void loop() {
       else if (command == VERIFY) {
         result = verifyFingerprint();
         serialPrinter(result);
+
+        // LED off
+        fingerprintSensor.LEDcontrol(false);
       }
 
       else if (command == BURST_VERIFY) {
@@ -143,6 +146,9 @@ void loop() {
         while (true) {
           result = verifyFingerprint();
           serialPrinter(result);
+
+          // LED off
+          fingerprintSensor.LEDcontrol(false);
 
           if (isOperationEnd)
             break;
@@ -158,10 +164,10 @@ void loop() {
       else if (command == DELETE_ALL) {
         result = deleteFingerprint(true);
         serialPrinter(result);
-      } else  if (command == "Extract") {
-          getModels();
+      } else if (command == "Extract") {
+        getModels();
 
-        
+
         fingerprintSensor.LEDcontrol(false);
       }
     }
@@ -352,6 +358,11 @@ String verifyFingerprint() {
       return OPERATION_TIMEOUT;
   }
 
+  // LED off
+  fingerprintSensor.LEDcontrol(false);
+
+  delay(1000);
+
   // Fingerprint image conversion
   p = fingerprintSensor.image2Tz();
   if (p != FINGERPRINT_OK)
@@ -414,68 +425,65 @@ void serialPrinter(String statusMessage) {
   }
 }
 
-
-
+// FEATURE: Extract
 void getModels() {
- 
- 
   Serial.println("[ Show Templete FULL ]");
-  
+
   delay(2000);
 
   for (int finger = 1; finger <= 1; finger++) {
     downloadFingerprintTemplate(finger);
   }
-
 }
 
-uint8_t downloadFingerprintTemplate(uint16_t id)
-{
-  Serial.print("Attempting to load #"); Serial.println(id);
+uint8_t downloadFingerprintTemplate(uint16_t id) {
+  Serial.print("Attempting to load #");
+  Serial.println(id);
   int p = fingerprintSensor.loadModel(id);
   switch (p) {
     case FINGERPRINT_OK:
-      Serial.print("Template "); Serial.print(id); Serial.println(" loaded");
+      Serial.print("Template ");
+      Serial.print(id);
+      Serial.println(" loaded");
       break;
     case FINGERPRINT_PACKETRECIEVEERR:
       Serial.println("Communication error");
       return p;
     default:
-      Serial.print("Unknown error "); Serial.println(p);
+      Serial.print("Unknown error ");
+      Serial.println(p);
       return p;
   }
 
-  Serial.print("Attempting to get #"); Serial.println(id);
-  p = fingerprintSensor.getModel();       // FP_UPLOAD = UPCHAR 0x08  -getModel() for Char Buffer 1 and getM odel2() for Char Buffer 2-
+  Serial.print("Attempting to get #");
+  Serial.println(id);
+  p = fingerprintSensor.getModel();  // FP_UPLOAD = UPCHAR 0x08  -getModel() for Char Buffer 1 and getM odel2() for Char Buffer 2-
   switch (p) {
     case FINGERPRINT_OK:
-      Serial.print("Template "); Serial.print(id); Serial.println(" transferring:");
+      Serial.print("Template ");
+      Serial.print(id);
+      Serial.println(" transferring:");
       break;
-   default:
-      Serial.print("Unknown error "); Serial.println(p);
+    default:
+      Serial.print("Unknown error ");
+      Serial.println(p);
       return p;
   }
 
+  uint8_t bytesReceived[900];
 
-
- uint8_t bytesReceived[900];
-
-  
   for (int i = 0; i < 900; i++) {
     bytesReceived[i] = 0;
   }
 
-
   int i = 0;
-  while (i <= 554 ) {
-      if (sensorSerial.available()) {
-        
-        
-          bytesReceived[i++] = sensorSerial.read();
-      }
+  while (i <= 554) {
+    if (sensorSerial.available()) {
+
+
+      bytesReceived[i++] = sensorSerial.read();
+    }
   }
- 
- 
 
   Serial.println("Decoding packet...");
 
@@ -483,38 +491,33 @@ uint8_t downloadFingerprintTemplate(uint16_t id)
   int a = 0, x = 3;
   Serial.print("uint8_t packet2[] = {");
   for (int i = 10; i <= 554; ++i) {
-      a++;
-      if (a >= 129)
-        {
-          i+=10;
-          a=0;
-          Serial.println("};");Serial.print("uint8_t packet");Serial.print(x);Serial.print("[] = {");
-		  x++;
-        }
-      else
-      {
-         Serial.print("0x"); 
-        printHex(bytesReceived[i-1] , 2); 
+    a++;
+    if (a >= 129) {
+      i += 10;
+      a = 0;
+      Serial.println("};");
+      Serial.print("uint8_t packet");
+      Serial.print(x);
+      Serial.print("[] = {");
+      x++;
+    } else {
+      Serial.print("0x");
+      printHex(bytesReceived[i - 1], 2);
       // Serial.print( bytesReceived[i-1]);
-        
-         Serial.print(", ");
-         //Serial.print("/"); 
-      }
+
+      Serial.print(", ");
+      //Serial.print("/");
+    }
   }
   Serial.println("};");
   Serial.println("COMPLETED\n");
- 
 }
-
-
 
 void printHex(int num, int precision) {
-    char tmp[16];
-    char format[128];
- 
-    sprintf(format, "%%.%dX", precision);
- 
-    sprintf(tmp, format, num);
-    Serial.print(tmp);
-}
+  char tmp[16];
+  char format[128];
 
+  sprintf(format, "%%.%dX", precision);
+  sprintf(tmp, format, num);
+  Serial.print(tmp);
+}
