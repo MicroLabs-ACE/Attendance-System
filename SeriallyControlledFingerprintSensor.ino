@@ -1,8 +1,4 @@
-
-// TODO: During setup, ensure fingerprint sensor has stored fingerprints in a stack format. If not, DeleteALL
-// TODO: Check if fingerprint already exists in enroll, if so, send FingerprintAlreadyExists
-// TODO: Ask for fingerprint ID before deleting
-// led control
+// TODO: Delete by ID
 
 #include <Adafruit_Fingerprint.h>
 #include <StopWatch.h>
@@ -26,6 +22,7 @@
 #define DELETE "Delete"
 #define DELETE_ALL "DeleteAll"
 #define STOP "Stop"
+#define EXTRACT "Extract"
 
 // Results
 #define FINGERPRINT_SENSOR_SUCCESS "FingerprintSensorSuccess"
@@ -50,6 +47,7 @@
 #define FINGERPRINT_NOT_FOUND "FingerprintNotFound"
 #define FINGERPRINT_ALREADY_EXISTS "FingerprintAlreadyExists"
 
+#define FINGERPRINT_DELETE_START "FingerprintDeleteStart"
 #define FINGERPRINT_DELETE_SUCCESS "FingerprintDeleteSuccess"
 #define FINGERPRINT_DELETE_ALL_SUCCESS "FingerprintDeleteAllSuccess"
 
@@ -71,7 +69,7 @@ String result;
 
 bool isOperationEnd = false;
 
-bool isAttendanceSystem = false;
+bool isAttendanceSystem = true;
 
 void setup() {
   // Serial setup
@@ -80,6 +78,8 @@ void setup() {
     ;
   delay(200);
   fingerprintSensor.begin(57600);
+
+  Serial.println();
 
   // Check if fingerprint is connected
   isSensor = fingerprintSensor.verifyPassword();
@@ -159,15 +159,19 @@ void loop() {
       else if (command == DELETE) {
         result = deleteFingerprint(false);
         serialPrinter(result);
+
+        // LED off
+        fingerprintSensor.LEDcontrol(false);
       }
 
       else if (command == DELETE_ALL) {
         result = deleteFingerprint(true);
         serialPrinter(result);
-      } else if (command == "Extract") {
+      }
+
+      // Extract
+      else if (command == EXTRACT) {
         getModels();
-
-
         fingerprintSensor.LEDcontrol(false);
       }
     }
@@ -261,12 +265,6 @@ String enrollFingerprint() {
   if (!isAttendanceSystem)
     Serial.println(FINGERPRINT_FIRST_CAPTURE);
 
-  // LED off
-  fingerprintSensor.LEDcontrol(false);
-
-  // Delay for second capture
-  delay(DELAY_FOR_SECOND_CAPTURE);
-
   // First fingerprint image conversion
   p = fingerprintSensor.image2Tz(1);
   if (p != FINGERPRINT_OK)
@@ -277,6 +275,12 @@ String enrollFingerprint() {
   while (p != FINGERPRINT_NOFINGER)
     p = fingerprintSensor.getImage();
   p = -1;
+
+  // LED off
+  fingerprintSensor.LEDcontrol(false);
+
+  // Delay for second capture
+  delay(DELAY_FOR_SECOND_CAPTURE);
 
   // Fingerprint search
   p = fingerprintSensor.fingerSearch();
@@ -340,6 +344,7 @@ String verifyFingerprint() {
     return FINGERPRINT_STORAGE_EMPTY;
   }
 
+  id = 0;
   if (!isAttendanceSystem)
     Serial.println(FINGERPRINT_VERIFY_START);
 
@@ -373,10 +378,16 @@ String verifyFingerprint() {
   if (p != FINGERPRINT_OK)
     return FINGERPRINT_NOT_FOUND;
 
+  id = fingerprintSensor.fingerID;
   return FINGERPRINT_VERIFY_SUCCESS;
 }
 
 String deleteFingerprint(bool shouldDeleteAll) {
+  int p = -1;  // Status checker
+
+  if (!isAttendanceSystem)
+    Serial.println(FINGERPRINT_DELETE_START);
+
   id = 0;
   id = readId(false);
   if (!id)
@@ -384,10 +395,41 @@ String deleteFingerprint(bool shouldDeleteAll) {
 
   if (shouldDeleteAll) {
     fingerprintSensor.emptyDatabase();
+    id = 1;
     return FINGERPRINT_DELETE_ALL_SUCCESS;
   }
 
   else {
+    // Fingerprint image capture
+    while (p != FINGERPRINT_OK) {
+      p = fingerprintSensor.getImage();
+
+      // Check whether to stop
+      isOperationEnd = shouldStop();
+      if (isOperationEnd)
+        return OPERATION_STOPPED;
+
+      isOperationEnd = shouldTimeout();
+      if (isOperationEnd)
+        return OPERATION_TIMEOUT;
+    }
+
+    // LED off
+    fingerprintSensor.LEDcontrol(false);
+
+    // Fingerprint image conversion
+    p = fingerprintSensor.image2Tz();
+    if (p != FINGERPRINT_OK)
+      return FINGERPRINT_CONVERSION_ERROR;
+
+    // Fingerprint search
+    p = fingerprintSensor.fingerSearch();
+
+    if (p == FINGERPRINT_OK)
+      id = fingerprintSensor.fingerID;
+    else
+      return FINGERPRINT_NOT_FOUND;
+
     fingerprintSensor.deleteModel(id);
     return FINGERPRINT_DELETE_SUCCESS;
   }
