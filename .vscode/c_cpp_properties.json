@@ -22,7 +22,7 @@
         },
         {
             "name": "Arduino",
-            "compilerPath": "C:\\Users\\Victor Momodu\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7\\bin\\avr-g++",
+            "compilerPath": "/Users/mac/Library/Arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/bin/avr-g++",
             "compilerArgs": [
                 "-w",
                 "-std=gnu++11",
@@ -35,17 +35,17 @@
             ],
             "intelliSenseMode": "gcc-x64",
             "includePath": [
-                "C:\\Users\\Victor Momodu\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.6\\cores\\arduino",
-                "C:\\Users\\Victor Momodu\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.6\\variants\\standard",
-                "C:\\Users\\Victor Momodu\\Documents\\Arduino\\libraries\\Adafruit_Fingerprint_Sensor_Library",
-                "C:\\Users\\Victor Momodu\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.6\\libraries\\SoftwareSerial\\src",
-                "C:\\Users\\Victor Momodu\\Documents\\Arduino\\libraries\\StopWatch_RT",
-                "c:\\users\\victor momodu\\appdata\\local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7\\lib\\gcc\\avr\\7.3.0\\include",
-                "c:\\users\\victor momodu\\appdata\\local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7\\lib\\gcc\\avr\\7.3.0\\include-fixed",
-                "c:\\users\\victor momodu\\appdata\\local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\7.3.0-atmel3.6.1-arduino7\\avr\\include"
+                "/Users/mac/Library/Arduino15/packages/arduino/hardware/avr/1.8.6/cores/arduino",
+                "/Users/mac/Library/Arduino15/packages/arduino/hardware/avr/1.8.6/variants/standard",
+                "/Users/mac/Documents/Arduino/libraries/Adafruit_Fingerprint_Sensor_Library",
+                "/Users/mac/Library/Arduino15/packages/arduino/hardware/avr/1.8.6/libraries/SoftwareSerial/src",
+                "/Users/mac/Documents/Arduino/libraries/StopWatch_RT",
+                "/Users/mac/Library/Arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/lib/gcc/avr/7.3.0/include",
+                "/Users/mac/Library/Arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/lib/gcc/avr/7.3.0/include-fixed",
+                "/Users/mac/Library/Arduino15/packages/arduino/tools/avr-gcc/7.3.0-atmel3.6.1-arduino7/avr/include"
             ],
             "forcedInclude": [
-                "C:\\Users\\Victor Momodu\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.6\\cores\\arduino\\Arduino.h"
+                "/Users/mac/Library/Arduino15/packages/arduino/hardware/avr/1.8.6/cores/arduino/Arduino.h"
             ],
             "cStandard": "c11",
             "cppStandard": "c++11",

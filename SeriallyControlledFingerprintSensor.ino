@@ -1,7 +1,9 @@
-// TODO: Add FingerprintStorageEmpty check to verifyFingerprint()
+
 // TODO: During setup, ensure fingerprint sensor has stored fingerprints in a stack format. If not, DeleteALL
 // TODO: Check if fingerprint already exists in enroll, if so, send FingerprintAlreadyExists
 // TODO: Ask for fingerprint ID before deleting
+// led control
+
 #include <Adafruit_Fingerprint.h>
 #include <StopWatch.h>
 
@@ -37,12 +39,15 @@
 #define FINGERPRINT_ENROLL_SUCCESS "FingerprintEnrollSuccess"
 #define FINGERPRINT_ENROLL_MISMATCH "FingerprintEnrollMismatch"
 #define FINGERPRINT_ENROLL_ERROR "FingerprintEnrollError"
+
 #define FINGERPRINT_FIRST_CAPTURE "FingerprintFirstCapture"
 #define FINGERPRINT_SECOND_CAPTURE "FingerprintSecondCapture"
 
 #define FINGERPRINT_VERIFY_START "FingerprintVerifyStart"
 #define FINGERPRINT_VERIFY_SUCCESS "FingerprintVerifySuccess"
+
 #define FINGERPRINT_NOT_FOUND "FingerprintNotFound"
+#define FINGERPRINT_ALREADY_EXIST "FingerprintAlreadyExists"
 
 #define FINGERPRINT_DELETE_SUCCESS "FingerprintDeleteSuccess"
 #define FINGERPRINT_DELETE_ALL_SUCCESS "FingerprintDeleteAllSuccess"
@@ -58,14 +63,18 @@ SoftwareSerial sensorSerial(TX, RX);
 Adafruit_Fingerprint fingerprintSensor = Adafruit_Fingerprint(&sensorSerial);
 StopWatch stopWatch;
 
+bool isAttendanceSystem = true;
+
 bool isSensor;
 uint8_t id;
 String command;
+
 String result;
 
 bool isOperationEnd = false;
 
-void setup() {
+void setup()
+{
   // Serial setup
   Serial.begin(9600);
   while (!Serial)
@@ -76,30 +85,36 @@ void setup() {
   // Check if fingerprint is connected
   isSensor = fingerprintSensor.verifyPassword();
   if (isSensor)
-    Serial.println(FINGERPRINT_SENSOR_SUCCESS);
+    println(FINGERPRINT_SENSOR_SUCCESS);
   else
-    Serial.println(FINGERPRINT_SENSOR_ERROR);
+    println(FINGERPRINT_SENSOR_ERROR);
 }
 
-void loop() {
-  if (isSensor) {
-    if (Serial.available() > 0) {
+void loop()
+{
+  if (isSensor)
+  {
+    if (Serial.available() > 0)
+    {
       command = Serial.readStringUntil(NEW_LINE_DELIMITER);
       command.trim();
       resetTimeout();
 
       // Enroll
-      if (command == ENROLL) {
+      if (command == ENROLL)
+      {
         result = enrollFingerprint();
-        Serial.println(result);
+        println(result);
       }
 
-      else if (command == BURST_ENROLL) {
-        Serial.println(BURST_ENROLL);
-        while (true) {
+      else if (command == BURST_ENROLL)
+      {
+        println(BURST_ENROLL);
+        while (true)
+        {
 
           result = enrollFingerprint();
-          Serial.println(result);
+          println(result);
 
           if (isOperationEnd)
             break;
@@ -107,16 +122,19 @@ void loop() {
       }
 
       // Verify
-      else if (command == VERIFY) {
+      else if (command == VERIFY)
+      {
         result = verifyFingerprint();
-        Serial.println(result);
+        println(result);
       }
 
-      else if (command == BURST_VERIFY) {
-        Serial.println(BURST_VERIFY);
-        while (true) {
+      else if (command == BURST_VERIFY)
+      {
+        println(BURST_VERIFY);
+        while (true)
+        {
           result = verifyFingerprint();
-          Serial.println(result);
+          println(result);
 
           if (isOperationEnd)
             break;
@@ -124,22 +142,26 @@ void loop() {
       }
 
       // Delete
-      else if (command == DELETE) {
+      else if (command == DELETE)
+      {
         result = deleteFingerprint(false);
-        Serial.println(result);
+        println(result);
       }
 
-      else if (command == DELETE_ALL) {
+      else if (command == DELETE_ALL)
+      {
         result = deleteFingerprint(true);
-        Serial.println(result);
+        println(result);
       }
     }
   }
 }
 
 // Helper functions
-bool shouldStop() {
-  if (Serial.available() > 0) {
+bool shouldStop()
+{
+  if (Serial.available() > 0)
+  {
     String stoppingCommand = Serial.readStringUntil("\n");
     stoppingCommand.trim();
     if (stoppingCommand == "Stop")
@@ -148,7 +170,8 @@ bool shouldStop() {
   return false;
 }
 
-bool shouldTimeout() {
+bool shouldTimeout()
+{
   if (!stopWatch.isRunning())
     stopWatch.start();
 
@@ -158,23 +181,32 @@ bool shouldTimeout() {
   return false;
 }
 
-void resetTimeout() {
+void resetTimeout()
+{
   stopWatch.reset();
 }
 
-int readId(bool isEnroll) {
+int readId(bool isEnroll)
+{
   int id = 0;
 
-  if (isEnroll) {
-    for (int addr = 1; addr <= FINGERPRINT_ADDRESS_SIZE; addr++) {
-      if (fingerprintSensor.loadModel(addr) == HAS_NO_FINGERPRINT) {
+  if (isEnroll)
+  {
+    for (int addr = 1; addr <= FINGERPRINT_ADDRESS_SIZE; addr++)
+    {
+      if (fingerprintSensor.loadModel(addr) == HAS_NO_FINGERPRINT)
+      {
         id = addr;
         break;
       }
     }
-  } else {
-    for (int addr = FINGERPRINT_ADDRESS_SIZE; addr >= 1; addr--) {
-      if (fingerprintSensor.loadModel(addr) == HAS_FINGERPRINT) {
+  }
+  else
+  {
+    for (int addr = FINGERPRINT_ADDRESS_SIZE; addr >= 1; addr--)
+    {
+      if (fingerprintSensor.loadModel(addr) == HAS_FINGERPRINT)
+      {
         id = addr;
         break;
       }
@@ -185,15 +217,16 @@ int readId(bool isEnroll) {
 }
 
 // Command operations
-String enrollFingerprint() {
+String enrollFingerprint()
+{
   id = 0;
   id = readId(true);
   if (!id)
     return FINGERPRINT_STORAGE_FULL;
 
-  int p = -1;  // Status checker
+  int p = -1; // Status checker
 
-  Serial.println(FINGERPRINT_ENROLL_START);
+  println(FINGERPRINT_ENROLL_START);
 
   // Check whether to stop
   isOperationEnd = shouldStop();
@@ -202,7 +235,8 @@ String enrollFingerprint() {
 
   resetTimeout();
   // First fingerprint image capture
-  while (p != FINGERPRINT_OK) {
+  while (p != FINGERPRINT_OK)
+  {
     p = fingerprintSensor.getImage();
 
     // Check whether to stop
@@ -216,7 +250,7 @@ String enrollFingerprint() {
   }
 
   // First fingerprint image capture
-  Serial.println(FINGERPRINT_FIRST_CAPTURE);
+  println(FINGERPRINT_FIRST_CAPTURE);
 
   // First fingerprint image conversion
   p = fingerprintSensor.image2Tz(1);
@@ -230,9 +264,15 @@ String enrollFingerprint() {
     p = fingerprintSensor.getImage();
   p = -1;
 
+  // Fingerprint search
+  p = fingerprintSensor.fingerSearch();
+  if (p == FINGERPRINT_OK)
+    return FINGERPRINT_ALREADY_EXIST;
+
   resetTimeout();
   // Second fingerprint image capture
-  while (p != FINGERPRINT_OK) {
+  while (p != FINGERPRINT_OK)
+  {
     p = fingerprintSensor.getImage();
 
     // Check whether to stop
@@ -246,7 +286,7 @@ String enrollFingerprint() {
   }
 
   // Second fingerprint image capture
-  Serial.println(FINGERPRINT_SECOND_CAPTURE);
+  println(FINGERPRINT_SECOND_CAPTURE);
 
   // Second fingerprint image conversion
   p = fingerprintSensor.image2Tz(2);
@@ -255,7 +295,8 @@ String enrollFingerprint() {
 
   // Fingerprint model creation
   p = fingerprintSensor.createModel();
-  if (p != FINGERPRINT_OK) {
+  if (p != FINGERPRINT_OK)
+  {
     if (p == FINGERPRINT_ENROLLMISMATCH)
       return FINGERPRINT_ENROLL_MISMATCH;
 
@@ -272,14 +313,21 @@ String enrollFingerprint() {
   return FINGERPRINT_ENROLL_SUCCESS;
 }
 
-String verifyFingerprint() {
-  int p = -1;  // Status checker
+String verifyFingerprint()
+{
+  int p = -1; // Status checker
 
-  Serial.println(FINGERPRINT_VERIFY_START);
+  println(FINGERPRINT_VERIFY_START);
+
+  id = 0;
+  id = readId(false);
+  if (!id)
+    return FINGERPRINT_STORAGE_EMPTY;
 
   resetTimeout();
   // Fingerprint image capture
-  while (p != FINGERPRINT_OK) {
+  while (p != FINGERPRINT_OK)
+  {
     p = fingerprintSensor.getImage();
 
     // Check whether to stop
@@ -305,19 +353,72 @@ String verifyFingerprint() {
   return FINGERPRINT_VERIFY_SUCCESS;
 }
 
-String deleteFingerprint(bool shouldDeleteAll) {
+String deleteFingerprint(bool shouldDeleteAll)
+{
   id = 0;
   id = readId(false);
   if (!id)
     return FINGERPRINT_STORAGE_EMPTY;
 
-  if (shouldDeleteAll) {
+  if (shouldDeleteAll)
+  {
     fingerprintSensor.emptyDatabase();
     return FINGERPRINT_DELETE_ALL_SUCCESS;
   }
 
-  else {
+  else
+  {
     fingerprintSensor.deleteModel(id);
     return FINGERPRINT_DELETE_SUCCESS;
+  }
+}
+
+void println(String value)
+{
+ 
+  if (isAttendanceSystem)
+  {
+    uint8_t output = -1;
+
+    String errorArray[] = {
+        FINGERPRINT_NOT_FOUND,
+        FINGERPRINT_SENSOR_ERROR,
+        FINGERPRINT_STORAGE_EMPTY,
+        FINGERPRINT_STORAGE_FULL,
+        OPERATION_STOPPED,
+        OPERATION_TIMEOUT,
+        FINGERPRINT_CONVERSION_ERROR,
+        FINGERPRINT_ALREADY_EXIST,
+        FINGERPRINT_CONVERSION_ERROR,
+        FINGERPRINT_ENROLL_MISMATCH,
+        FINGERPRINT_ENROLL_ERROR,
+        FINGERPRINT_ENROLL_MISMATCH,
+    };
+    String successArray[] = {
+        FINGERPRINT_ENROLL_SUCCESS,
+        FINGERPRINT_VERIFY_SUCCESS,
+        FINGERPRINT_DELETE_ALL_SUCCESS,
+    };
+
+    for (int i = 0; i < sizeof(successArray) / sizeof(successArray[0]); i++)
+    {
+      if (successArray[i] == value)
+      {
+        Serial.println(id);
+        break;
+      }
+    }
+    for (int i = 0; i < sizeof(errorArray) / sizeof(errorArray[0]); i++)
+    {
+      if (errorArray[i] == value)
+      {
+        Serial.println(0);
+        break;
+      }
+    }
+  }
+  else
+  {
+    Serial.println(value);
   }
 }
