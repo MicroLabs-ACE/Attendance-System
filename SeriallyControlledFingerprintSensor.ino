@@ -1,11 +1,8 @@
-// TODO: Delete by ID
-
 #include <Adafruit_Fingerprint.h>
 #include <StopWatch.h>
 
 // Timing
 #define TIMEOUT 300000
-// DEBUG
 #define DELAY_FOR_SECOND_CAPTURE 2000
 
 // Constants
@@ -15,14 +12,14 @@
 #define NEW_LINE_DELIMITER "\n"
 
 // Commands
-#define ENROLL "Enroll"
-#define BURST_ENROLL "BurstEnroll"
-#define VERIFY "Verify"
-#define BURST_VERIFY "BurstVerify"
-#define DELETE "Delete"
-#define DELETE_ALL "DeleteAll"
-#define STOP "Stop"
-#define EXTRACT "Extract"
+#define ENROLL '#'
+#define BURST_ENROLL '+'
+#define VERIFY '-'
+#define BURST_VERIFY '_'
+#define DELETE '/'
+#define DELETE_ALL '%'
+#define STOP '!'
+#define PING '*'
 
 // Results
 #define FINGERPRINT_SENSOR_SUCCESS "FingerprintSensorSuccess"
@@ -31,8 +28,6 @@
 #define FINGERPRINT_STORAGE_FULL "FingerprintStorageFull"
 #define FINGERPRINT_STORAGE_EMPTY "FingerprintStorageEmpty"
 
-#define FINGERPRINT_CONVERSION_ERROR "FingerprintConversionError"
-
 #define FINGERPRINT_ENROLL_START "FingerprintEnrollStart"
 #define FINGERPRINT_ENROLL_SUCCESS "FingerprintEnrollSuccess"
 #define FINGERPRINT_ENROLL_MISMATCH "FingerprintEnrollMismatch"
@@ -40,6 +35,7 @@
 
 #define FINGERPRINT_FIRST_CAPTURE "FingerprintFirstCapture"
 #define FINGERPRINT_SECOND_CAPTURE "FingerprintSecondCapture"
+#define FINGERPRINT_CONVERSION_ERROR "FingerprintConversionError"
 
 #define FINGERPRINT_VERIFY_START "FingerprintVerifyStart"
 #define FINGERPRINT_VERIFY_SUCCESS "FingerprintVerifySuccess"
@@ -64,7 +60,7 @@ StopWatch stopWatch;
 
 bool isSensor;
 uint8_t id;
-String command;
+char command;
 String result;
 
 bool isOperationEnd = false;
@@ -79,7 +75,8 @@ void setup() {
   delay(200);
   fingerprintSensor.begin(57600);
 
-  Serial.println();
+  if (!isAttendanceSystem)
+    Serial.println();
 
   // Check if fingerprint is connected
   isSensor = fingerprintSensor.verifyPassword();
@@ -100,8 +97,7 @@ void setup() {
 void loop() {
   if (isSensor) {
     if (Serial.available() > 0) {
-      command = Serial.readStringUntil(NEW_LINE_DELIMITER);
-      command.trim();
+      command = Serial.read();
       resetTimeout();
 
       // Enroll
@@ -169,10 +165,8 @@ void loop() {
         serialPrinter(result);
       }
 
-      // Extract
-      else if (command == EXTRACT) {
-        getModels();
-        fingerprintSensor.LEDcontrol(false);
+      else if (command == PING) {
+        Serial.println(PING);
       }
     }
   }
@@ -181,10 +175,9 @@ void loop() {
 // Helper functions
 bool shouldStop() {
   if (Serial.available() > 0) {
-    String stoppingCommand = Serial.readStringUntil("\n");
-    stoppingCommand.trim();
+    char stoppingCommand = Serial.read();
 
-    if (stoppingCommand == "Stop")
+    if (stoppingCommand == STOP)
       return true;
   }
 
