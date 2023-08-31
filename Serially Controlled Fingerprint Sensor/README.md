@@ -1,4 +1,4 @@
-# Attendance-System
+# Serially Controlled Fingerprint Sensor
 
 This Arduino sketch provides functions to enroll, verify, and delete fingerprints using a fingerprint sensor module connected to an Arduino Uno. It is intended to work together with a Python program that sends commands over serial communication.
 
