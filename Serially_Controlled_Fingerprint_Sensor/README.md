@@ -85,4 +85,3 @@ The following messages can be sent:
 The following message is sent:
 
 - _PingSuccess_ - indicates a `Ping` command has been received and that the fingerprint sensor is still conencted.
-- PingError - indicates a `Ping` command has been received and that the fingerprint sensor is not still conencted.
