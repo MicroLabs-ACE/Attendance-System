@@ -75,8 +75,6 @@ void setup() {
   delay(200);
   fingerprintSensor.begin(57600);
 
-  Serial.println();
-
   // Check if fingerprint is connected
   isSensor = fingerprintSensor.verifyPassword();
   if (isSensor)
@@ -164,7 +162,7 @@ void loop() {
 
       // Ping
       else if (command == PING) {
-        Serial.println(PING_SUCESS);
+        Serial.println(PING_SUCCESS);
       }
     }
   }
