@@ -4,6 +4,7 @@
 // Timing
 #define TIMEOUT 300000
 #define DELAY_FOR_SECOND_CAPTURE 2000
+#define BURST_DELAY 1000
 
 // Constants
 #define HAS_FINGERPRINT 0
@@ -12,14 +13,14 @@
 #define NEW_LINE_DELIMITER "\n"
 
 // Commands
-#define ENROLL '#'
-#define BURST_ENROLL '+'
-#define VERIFY '-'
-#define BURST_VERIFY '_'
-#define DELETE '/'
-#define DELETE_ALL '%'
-#define STOP '!'
-#define PING '*'
+#define ENROLL "Enroll"
+#define BURST_ENROLL "BurstEnroll"
+#define VERIFY "Verify"
+#define BURST_VERIFY "BurstVerify"
+#define DELETE "Delete"
+#define DELETE_ALL "DeleteAll"
+#define STOP "Stop"
+#define PING "Ping"
 
 // Results
 #define FINGERPRINT_SENSOR_SUCCESS "FingerprintSensorSuccess"
@@ -47,6 +48,8 @@
 #define FINGERPRINT_DELETE_SUCCESS "FingerprintDeleteSuccess"
 #define FINGERPRINT_DELETE_ALL_SUCCESS "FingerprintDeleteAllSuccess"
 
+#define PING_OUTPUT "PingOutput"
+
 // Operation terminators
 #define OPERATION_STOPPED "OperationStopped"
 #define OPERATION_TIMEOUT "OperationTimeout"
@@ -60,12 +63,10 @@ StopWatch stopWatch;
 
 bool isSensor;
 uint8_t id;
-char command;
+String command;
 String result;
 
 bool isOperationEnd = false;
-
-bool isAttendanceSystem = true;
 
 void setup() {
   // Serial setup
@@ -75,20 +76,14 @@ void setup() {
   delay(200);
   fingerprintSensor.begin(57600);
 
-  if (!isAttendanceSystem)
-    Serial.println();
+  Serial.println();
 
   // Check if fingerprint is connected
   isSensor = fingerprintSensor.verifyPassword();
-  if (isSensor) {
-    if (!isAttendanceSystem)
-      Serial.println(FINGERPRINT_SENSOR_SUCCESS);
-  }
-
-  else {
-    if (!isAttendanceSystem)
-      Serial.println(FINGERPRINT_SENSOR_ERROR);
-  }
+  if (isSensor)
+    Serial.println(FINGERPRINT_SENSOR_SUCCESS);
+  else
+    Serial.println(FINGERPRINT_SENSOR_ERROR);
 
   // LED off
   fingerprintSensor.LEDcontrol(false);
@@ -97,29 +92,28 @@ void setup() {
 void loop() {
   if (isSensor) {
     if (Serial.available() > 0) {
-      command = Serial.read();
+      command = Serial.readStringUntil(NEW_LINE_DELIMITER);
       resetTimeout();
 
       // Enroll
       if (command == ENROLL) {
         result = enrollFingerprint();
-        serialPrinter(result);
+        Serial.println(result);
 
         // LED off
         fingerprintSensor.LEDcontrol(false);
       }
 
       else if (command == BURST_ENROLL) {
-        if (!isAttendanceSystem)
-          Serial.println(BURST_ENROLL);
+        Serial.println(BURST_ENROLL);
 
         while (true) {
           result = enrollFingerprint();
-          serialPrinter(result);
+          Serial.println(result);
 
           // LED off
           fingerprintSensor.LEDcontrol(false);
-          delay(1500);
+          delay(BURST_DELAY);
 
           if (isOperationEnd)
             break;
@@ -129,22 +123,23 @@ void loop() {
       // Verify
       else if (command == VERIFY) {
         result = verifyFingerprint();
-        serialPrinter(result);
+        Serial.println(result);
 
         // LED off
         fingerprintSensor.LEDcontrol(false);
       }
 
       else if (command == BURST_VERIFY) {
-        if (!isAttendanceSystem)
-          Serial.println(BURST_VERIFY);
+
+        Serial.println(BURST_VERIFY);
 
         while (true) {
           result = verifyFingerprint();
-          serialPrinter(result);
+          Serial.println(result);
 
           // LED off
           fingerprintSensor.LEDcontrol(false);
+          delay(BURST_DELAY);
 
           if (isOperationEnd)
             break;
@@ -154,7 +149,7 @@ void loop() {
       // Delete
       else if (command == DELETE) {
         result = deleteFingerprint(false);
-        serialPrinter(result);
+        Serial.println(result);
 
         // LED off
         fingerprintSensor.LEDcontrol(false);
@@ -162,11 +157,12 @@ void loop() {
 
       else if (command == DELETE_ALL) {
         result = deleteFingerprint(true);
-        serialPrinter(result);
+        Serial.println(result);
       }
 
+      // Ping
       else if (command == PING) {
-        Serial.println(PING);
+        Serial.println(PING_OUTPUT);
       }
     }
   }
@@ -175,7 +171,7 @@ void loop() {
 // Helper functions
 bool shouldStop() {
   if (Serial.available() > 0) {
-    char stoppingCommand = Serial.read();
+    char stoppingCommand = Serial.readStringUntil(NEW_LINE_DELIMITER);
 
     if (stoppingCommand == STOP)
       return true;
@@ -231,8 +227,8 @@ String enrollFingerprint() {
 
   int p = -1;  // Status checker
 
-  if (!isAttendanceSystem)
-    Serial.println(FINGERPRINT_ENROLL_START);
+
+  Serial.println(FINGERPRINT_ENROLL_START);
 
   // Check whether to stop
   isOperationEnd = shouldStop();
@@ -255,8 +251,8 @@ String enrollFingerprint() {
   }
 
   // First fingerprint image capture
-  if (!isAttendanceSystem)
-    Serial.println(FINGERPRINT_FIRST_CAPTURE);
+
+  Serial.println(FINGERPRINT_FIRST_CAPTURE);
 
   // First fingerprint image conversion
   p = fingerprintSensor.image2Tz(1);
@@ -297,8 +293,8 @@ String enrollFingerprint() {
   }
 
   // Second fingerprint image capture
-  if (!isAttendanceSystem)
-    Serial.println(FINGERPRINT_SECOND_CAPTURE);
+
+  Serial.println(FINGERPRINT_SECOND_CAPTURE);
 
   // LED off
   fingerprintSensor.LEDcontrol(false);
@@ -338,8 +334,8 @@ String verifyFingerprint() {
   }
 
   id = 0;
-  if (!isAttendanceSystem)
-    Serial.println(FINGERPRINT_VERIFY_START);
+
+  Serial.println(FINGERPRINT_VERIFY_START);
 
   resetTimeout();
   // Fingerprint image capture
@@ -378,8 +374,7 @@ String verifyFingerprint() {
 String deleteFingerprint(bool shouldDeleteAll) {
   int p = -1;  // Status checker
 
-  if (!isAttendanceSystem)
-    Serial.println(FINGERPRINT_DELETE_START);
+  Serial.println(FINGERPRINT_DELETE_START);
 
   id = 0;
   id = readId(false);
@@ -426,133 +421,4 @@ String deleteFingerprint(bool shouldDeleteAll) {
     fingerprintSensor.deleteModel(id);
     return FINGERPRINT_DELETE_SUCCESS;
   }
-}
-
-void serialPrinter(String statusMessage) {
-  if (isAttendanceSystem) {
-    bool isSuccessMessage = false;
-
-    String successArray[] = {
-      // Enroll
-      FINGERPRINT_ENROLL_SUCCESS,
-
-      // Verify
-      FINGERPRINT_VERIFY_SUCCESS,
-
-      // Delete
-      FINGERPRINT_DELETE_SUCCESS,
-      FINGERPRINT_DELETE_ALL_SUCCESS,
-    };
-
-    for (int i = 0; i < sizeof(successArray); i++) {
-      if (statusMessage == successArray[i]) {
-        isSuccessMessage = true;
-        Serial.println(id);
-      }
-    }
-
-    if (!isSuccessMessage)
-      Serial.println(0);
-  }
-
-  else {
-    Serial.println(statusMessage);
-  }
-}
-
-// FEATURE: Extract
-void getModels() {
-  Serial.println("[ Show Templete FULL ]");
-
-  delay(2000);
-
-  for (int finger = 1; finger <= 1; finger++) {
-    downloadFingerprintTemplate(finger);
-  }
-}
-
-uint8_t downloadFingerprintTemplate(uint16_t id) {
-  Serial.print("Attempting to load #");
-  Serial.println(id);
-  int p = fingerprintSensor.loadModel(id);
-  switch (p) {
-    case FINGERPRINT_OK:
-      Serial.print("Template ");
-      Serial.print(id);
-      Serial.println(" loaded");
-      break;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      Serial.println("Communication error");
-      return p;
-    default:
-      Serial.print("Unknown error ");
-      Serial.println(p);
-      return p;
-  }
-
-  Serial.print("Attempting to get #");
-  Serial.println(id);
-  p = fingerprintSensor.getModel();  // FP_UPLOAD = UPCHAR 0x08  -getModel() for Char Buffer 1 and getM odel2() for Char Buffer 2-
-  switch (p) {
-    case FINGERPRINT_OK:
-      Serial.print("Template ");
-      Serial.print(id);
-      Serial.println(" transferring:");
-      break;
-    default:
-      Serial.print("Unknown error ");
-      Serial.println(p);
-      return p;
-  }
-
-  uint8_t bytesReceived[900];
-
-  for (int i = 0; i < 900; i++) {
-    bytesReceived[i] = 0;
-  }
-
-  int i = 0;
-  while (i <= 554) {
-    if (sensorSerial.available()) {
-
-
-      bytesReceived[i++] = sensorSerial.read();
-    }
-  }
-
-  Serial.println("Decoding packet...");
-
-  // Filtering The Packet
-  int a = 0, x = 3;
-  Serial.print("uint8_t packet2[] = {");
-  for (int i = 10; i <= 554; ++i) {
-    a++;
-    if (a >= 129) {
-      i += 10;
-      a = 0;
-      Serial.println("};");
-      Serial.print("uint8_t packet");
-      Serial.print(x);
-      Serial.print("[] = {");
-      x++;
-    } else {
-      Serial.print("0x");
-      printHex(bytesReceived[i - 1], 2);
-      // Serial.print( bytesReceived[i-1]);
-
-      Serial.print(", ");
-      //Serial.print("/");
-    }
-  }
-  Serial.println("};");
-  Serial.println("COMPLETED\n");
-}
-
-void printHex(int num, int precision) {
-  char tmp[16];
-  char format[128];
-
-  sprintf(format, "%%.%dX", precision);
-  sprintf(tmp, format, num);
-  Serial.print(tmp);
 }

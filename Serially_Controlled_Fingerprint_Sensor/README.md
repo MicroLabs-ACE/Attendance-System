@@ -68,6 +68,8 @@ The following messages can be sent:
 - _FingerprintVerifySuccess_ - indicates fingerprint was found.
 - _BurstVerify_ - indicates that burst verify has begun.
 
+For `Burst` commands, it should be noted that there is a delay of 1000ms between successive operations. To modify, consult hardware engineer.
+
 ### Delete/DeleteAll
 
 No fingerprint scan is needed. Deletes either a single fingerprint or all fingerprints depending on the command.
@@ -76,5 +78,11 @@ The following messages can be sent:
 
 - _FingerprintStorageEmpty_ - indicates no fingerprints are in storage. Register fingerprints by running the `Enroll` or `BurstEnroll` command. If it still persists, consult hardware engineer.
 - _FingerprintDelete(All)Success_ - indicates fingerprint(s) has/have been successfully deleted.
+
+### Ping
+
+The following message is sent:
+
+- _PingOutput_ - indicates a 'Ping' command has been recieved.
 
 **ID selection** - The fingerprint storage works using a LIFO (i.e. stack) mechanism.
