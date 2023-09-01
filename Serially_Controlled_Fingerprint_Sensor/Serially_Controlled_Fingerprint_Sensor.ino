@@ -47,7 +47,7 @@
 #define FINGERPRINT_DELETE_SUCCESS "FingerprintDeleteSuccess"
 #define FINGERPRINT_DELETE_ALL_SUCCESS "FingerprintDeleteAllSuccess"
 
-#define PING_OUTPUT "PingOutput"
+#define PING_SUCCESS "PingSuccess"
 
 // Operation terminators
 #define OPERATION_STOPPED "OperationStopped"
@@ -164,7 +164,7 @@ void loop() {
 
       // Ping
       else if (command == PING) {
-        Serial.println(PING_OUTPUT);
+        Serial.println(PING_SUCESS);
       }
     }
   }
