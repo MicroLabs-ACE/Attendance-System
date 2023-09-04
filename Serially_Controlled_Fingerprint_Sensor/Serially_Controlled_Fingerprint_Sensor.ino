@@ -311,7 +311,7 @@ String enrollFingerprint() {
     return FINGERPRINT_ENROLL_ERROR;
 
   // Fingerprint success
-  return FINGERPRINT_ENROLL_SUCCESS;
+  return FINGERPRINT_ENROLL_SUCCESS + ":" + String(id);
 }
 
 String verifyFingerprint() {
@@ -354,7 +354,8 @@ String verifyFingerprint() {
   if (p != FINGERPRINT_OK)
     return FINGERPRINT_NOT_FOUND;
 
-  return FINGERPRINT_VERIFY_SUCCESS;
+  id = fingerprintSensor.fingerID;
+  return FINGERPRINT_VERIFY_SUCCESS + ":" + String(id);
 }
 
 String deleteFingerprint(bool shouldDeleteAll) {
@@ -402,6 +403,6 @@ String deleteFingerprint(bool shouldDeleteAll) {
     id = fingerprintSensor.fingerID;
     fingerprintSensor.deleteModel(id);
 
-    return FINGERPRINT_DELETE_SUCCESS;
+    return FINGERPRINT_DELETE_SUCCESS + ":" + String(id);
   }
 }
