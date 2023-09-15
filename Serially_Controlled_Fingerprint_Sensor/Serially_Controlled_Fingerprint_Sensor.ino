@@ -54,7 +54,7 @@
 #define OPERATION_TIMEOUT "OperationTimeout"
 
 const int TX = 2;
-const int RX = 3;
+const int RX = 4;
 
 SoftwareSerial sensorSerial(TX, RX);
 Adafruit_Fingerprint fingerprintSensor = Adafruit_Fingerprint(&sensorSerial);
@@ -86,7 +86,6 @@ void setup() {
   delay(DELAY);
   fingerprintSensor.LEDcontrol(false);
 }
-
 
 void loop() {
   if (isSensor) {
@@ -201,7 +200,6 @@ bool isFingerprintStorageFull(void) {
   return fingerprintSensor.templateCount == FINGERPRINT_ADDRESS_SIZE;
 }
 
-
 void readId(void) {
   for (int addr = 1; addr <= FINGERPRINT_ADDRESS_SIZE; addr++) {
     if (fingerprintSensor.loadModel(addr) == HAS_NO_FINGERPRINT) {
@@ -311,7 +309,8 @@ String enrollFingerprint() {
     return FINGERPRINT_ENROLL_ERROR;
 
   // Fingerprint success
-  return FINGERPRINT_ENROLL_SUCCESS;
+  // return FINGERPRINT_ENROLL_SUCCESS;
+  return String(id);
 }
 
 String verifyFingerprint() {
@@ -354,7 +353,8 @@ String verifyFingerprint() {
   if (p != FINGERPRINT_OK)
     return FINGERPRINT_NOT_FOUND;
 
-  return FINGERPRINT_VERIFY_SUCCESS;
+  // return FINGERPRINT_VERIFY_SUCCESS;
+  return String(id);
 }
 
 String deleteFingerprint(bool shouldDeleteAll) {
@@ -402,6 +402,7 @@ String deleteFingerprint(bool shouldDeleteAll) {
     id = fingerprintSensor.fingerID;
     fingerprintSensor.deleteModel(id);
 
-    return FINGERPRINT_DELETE_SUCCESS;
+    // return FINGERPRINT_DELETE_SUCCESS;
+    return String(id);
   }
 }
