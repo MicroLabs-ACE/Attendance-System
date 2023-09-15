@@ -1,24 +1,31 @@
-#include <iostream>
-#include <string>
+#include <sqlite3.h>
 #include <conio.h>
-#include <fstream>
-#include "dpfpdd.h"
-#include "dpfj.h"
+#include <string>
+#include <iostream>
 
 using namespace std;
 
 int main()
 {
-    ofstream outputFile;
-    outputFile.open("output.txt", ios::out);
+    sqlite3 *db;
+    int rc = sqlite3_open("mydatabase.db", &db);
 
-    if (!outputFile.is_open())
+    if (rc)
     {
-        std::cerr << "Error: Could not open the file for writing." << std::endl;
-        return 1; // Return an error code
+        cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
+        return 1;
     }
 
-    char myTxt[] = "Testing...";
-    outputFile << myTxt;
-    outputFile.close();
+    const char *createTableSQL = "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, 0);
+
+    if (rc)
+    {
+        std::cerr << "Error creating table: " << sqlite3_errmsg(db) << std::endl;
+        return 1;
+    }
+
+    _getch();
+
+    return 0;
 }

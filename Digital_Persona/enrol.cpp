@@ -1,12 +1,15 @@
-#include <iostream>
-#include <string>
 #include <conio.h>
 #include <fstream>
-#include "dpfpdd.h"
+#include <iostream>
+#include <sqlite3.h>
+#include <string>
+
 #include "dpfj.h"
+#include "dpfpdd.h"
 
 using namespace std;
 
+// Function to handle DPFPDD errors
 void handleDPFPDDError(int errorCode)
 {
     switch (errorCode)
@@ -42,8 +45,70 @@ void handleDPFPDDError(int errorCode)
     }
 }
 
+// Function to create an SQLite database and the fingerprintTable
+void create_db()
+{
+    sqlite3 *db;
+    int rc = sqlite3_open("fingerprints.db", &db);
+
+    if (rc)
+    {
+        cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
+        return;
+    }
+
+    // SQL statement to create the table with an auto-incremented primary key
+    const char *createTableSQL = "CREATE TABLE IF NOT EXISTS fingerprintTable (id INTEGER PRIMARY KEY AUTOINCREMENT, binary_data BLOB);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, 0);
+
+    if (rc)
+    {
+        cerr << "Error creating table: " << sqlite3_errmsg(db) << endl;
+        return;
+    }
+}
+
+// Function to insert binary data (fingerprint) into the database
+void insert_into_table(unsigned char *data, int dataSize)
+{
+    sqlite3 *db;
+    int rc = sqlite3_open("fingerprints.db", &db);
+
+    if (rc)
+    {
+        cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
+        return;
+    }
+
+    cout << "Opened fingerprints database." << endl;
+
+    const char *insertSQL = "INSERT INTO fingerprintTable (binary_data) VALUES (?);";
+
+    // Prepare the SQL statement
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, insertSQL, -1, &stmt, 0) == SQLITE_OK)
+    {
+        // Bind the unsigned char array as a BLOB
+        sqlite3_bind_blob(stmt, 1, data, dataSize, SQLITE_STATIC); // Use SQLITE_STATIC if data is not managed by SQLite
+        int result = sqlite3_step(stmt);
+        if (result != SQLITE_DONE)
+        {
+            cerr << "Error inserting data: " << sqlite3_errmsg(db) << endl;
+            return;
+        }
+        sqlite3_finalize(stmt);
+        cout << "Inserted fingerprint data into table successfully." << endl;
+    }
+
+    // Close the database when done
+    sqlite3_close(db);
+}
+
 int main()
 {
+    // Create the fingerprint database and table
+    create_db();
+
     // Reader information
     char readerName[] = "$00$05ba&000a&0103{3CDEF154-2A0D-40F9-93B1-3FE8C0765719}";
     DPFPDD_DEV readerHandle;
@@ -57,6 +122,7 @@ int main()
         return 1;
     }
 
+    // Open the fingerprint reader
     int openResult = dpfpdd_open_ext(readerName, DPFPDD_PRIORITY_COOPERATIVE, &readerHandle);
     if (openResult != DPFPDD_SUCCESS)
     {
@@ -77,7 +143,7 @@ int main()
         unsigned int image_size;
         unsigned char *image_data;
 
-        // Allocate memory for image_data, you may need to adjust the size
+        // Allocate memory for image_data (you may need to adjust the size)
         image_size = 1000000; // Adjust this size as needed
         image_data = (unsigned char *)malloc(image_size);
 
@@ -96,6 +162,7 @@ int main()
 
         cout << "Captured fingerprint image." << endl;
 
+        // Convert the captured fingerprint image to FMD format
         DPFJ_FMD_FORMAT fmdFormat = DPFJ_FMD_ISO_19794_2_2005;
         unsigned char *pFeatures = NULL;
         unsigned int nFeaturesSize = MAX_FMD_SIZE;
@@ -109,11 +176,14 @@ int main()
         }
 
         cout << "Converted fingerprint image to FMD successfully." << endl;
+
+        // Insert the converted fingerprint data into the database
+        insert_into_table(pFeatures, nFeaturesSize);
     }
 
+    // Clean up and exit
     dpfpdd_exit();
 
-    _getch();
-
+    _getch(); // Wait for a key press
     return 0;
 }
