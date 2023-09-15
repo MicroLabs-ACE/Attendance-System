@@ -95,6 +95,20 @@ int main()
         }
 
         cout << "Captured fingerprint image." << endl;
+
+        DPFJ_FMD_FORMAT fmdFormat = DPFJ_FMD_ISO_19794_2_2005;
+        unsigned char *pFeatures = NULL;
+        unsigned int nFeaturesSize = MAX_FMD_SIZE;
+        pFeatures = new unsigned char[nFeaturesSize];
+        int conversionResult = dpfj_create_fmd_from_fid(captureParam.image_fmt, image_data, image_size, fmdFormat, pFeatures, &nFeaturesSize);
+
+        if (conversionResult != DPFPDD_SUCCESS)
+        {
+            handleDPFPDDError(captureStatus);
+            return 1;
+        }
+
+        cout << "Converted fingerprint image to FMD successfully." << endl;
     }
 
     dpfpdd_exit();
