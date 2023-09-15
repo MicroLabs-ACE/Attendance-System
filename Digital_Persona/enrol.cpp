@@ -95,22 +95,6 @@ int main()
         }
 
         cout << "Captured fingerprint image." << endl;
-
-        // Save the fingerprint image data to a file
-        ofstream outputFile("fingerprint_image.raw", ios::binary);
-        if (outputFile.is_open())
-        {
-            outputFile.write(reinterpret_cast<const char *>(image_data), image_size);
-            outputFile.close();
-            cout << "Fingerprint image data saved to fingerprint_image.raw" << endl;
-        }
-        else
-        {
-            cout << "Error: Could not open the output file for writing." << endl;
-        }
-
-        // Free allocated memory for image_data
-        free(image_data);
     }
 
     dpfpdd_exit();
