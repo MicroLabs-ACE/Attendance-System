@@ -109,11 +109,6 @@ int main()
     // Create the fingerprint database and table
     create_db();
 
-    // Reader information
-    char readerName[] = "$00$05ba&000a&0103{3CDEF154-2A0D-40F9-93B1-3FE8C0765719}";
-    DPFPDD_DEV readerHandle;
-    DPFJ_FMD_FORMAT enrollmentFormat = DPFJ_FMD_DP_REG_FEATURES;
-
     // Initialize DPFPDD
     int initResult = dpfpdd_init();
     if (initResult != DPFPDD_SUCCESS)
@@ -122,11 +117,53 @@ int main()
         return 1;
     }
 
+    DPFPDD_STATUS dpStatus;
+    DPFPDD_DEV_INFO devInfoArray[10];
+    unsigned int devCount = sizeof(devInfoArray) / sizeof(devInfoArray[0]);
+    DPFPDD_DEV devHandle = NULL;
+
+    if (dpStatus != DPFPDD_SUCCESS)
+    {
+        handleDPFPDDError(dpStatus);
+        _getch();
+        return 1; // Return 1 on error
+    }
+
+    dpStatus = dpfpdd_query_devices(&devCount, devInfoArray);
+    if (dpStatus != DPFPDD_SUCCESS)
+    {
+        handleDPFPDDError(dpStatus);
+        return 1; // Return 1 on error
+    }
+
+    if (devCount == 0)
+    {
+        cerr << "No devices found." << endl;
+        dpfpdd_exit();
+        exit(1); // Exit the program with an error status
+    }
+
+    cout << "Found " << devCount << " device(s):" << endl;
+
+    for (unsigned int i = 0; i < devCount; ++i)
+        cout << "Device " << i << ": " << devInfoArray[i].name << endl;
+
+    unsigned int devIndex;
+
+    cout << "Enter index of device: ";
+    cin >> devIndex;
+
+    // Reader information
+    char *readerName = devInfoArray[devIndex].name;
+    DPFPDD_DEV readerHandle;
+    DPFJ_FMD_FORMAT enrollmentFormat = DPFJ_FMD_DP_REG_FEATURES;
+
     // Open the fingerprint reader
     int openResult = dpfpdd_open_ext(readerName, DPFPDD_PRIORITY_COOPERATIVE, &readerHandle);
     if (openResult != DPFPDD_SUCCESS)
     {
         handleDPFPDDError(openResult);
+        _getch();
         return 1; // Return 1 on error
     }
     else
@@ -136,7 +173,7 @@ int main()
         // Configure capture parameters
         DPFPDD_CAPTURE_PARAM captureParam = {0};
         captureParam.size = sizeof(captureParam);
-        captureParam.image_fmt = DPFPDD_IMG_FMT_ISOIEC19794;
+        captureParam.image_fmt = DPFPDD_IMG_FMT_ANSI381;
         captureParam.image_proc = DPFPDD_IMG_PROC_NONE;
         captureParam.image_res = 700;
 
@@ -157,13 +194,14 @@ int main()
         if (captureStatus != DPFPDD_SUCCESS)
         {
             handleDPFPDDError(captureStatus);
+            _getch();
             return 1;
         }
 
         cout << "Captured fingerprint image." << endl;
 
         // Convert the captured fingerprint image to FMD format
-        DPFJ_FMD_FORMAT fmdFormat = DPFJ_FMD_ISO_19794_2_2005;
+        DPFJ_FMD_FORMAT fmdFormat = DPFJ_FMD_ANSI_378_2004;
         unsigned char *pFeatures = NULL;
         unsigned int nFeaturesSize = MAX_FMD_SIZE;
         pFeatures = new unsigned char[nFeaturesSize];
@@ -172,6 +210,7 @@ int main()
         if (conversionResult != DPFPDD_SUCCESS)
         {
             handleDPFPDDError(captureStatus);
+            _getch();
             return 1;
         }
 
