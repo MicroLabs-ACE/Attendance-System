@@ -1,4 +1,5 @@
 #include <conio.h>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <sqlite3.h>
@@ -69,10 +70,47 @@ void create_db()
     }
 }
 
-// Function to retrieve all fingerprints from the database and store them in a vector
-vector<vector<unsigned char>> retrieve_all_fingerprints()
+// Function to insert binary data (fingerprint) into the database
+void insert_into_table(unsigned char *data, int dataSize)
 {
-    vector<vector<unsigned char>> fingerprints;
+    cout << "Size: " << sizeof(data) << endl;
+    sqlite3 *db;
+    int rc = sqlite3_open("fingerprints.db", &db);
+
+    if (rc)
+    {
+        cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
+        return;
+    }
+
+    cout << "Opened fingerprints database." << endl;
+
+    const char *insertSQL = "INSERT INTO fingerprintTable (binary_data) VALUES (?);";
+
+    // Prepare the SQL statement
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, insertSQL, -1, &stmt, 0) == SQLITE_OK)
+    {
+        // Bind the unsigned char array as a BLOB
+        sqlite3_bind_blob(stmt, 1, data, dataSize, SQLITE_STATIC); // Use SQLITE_STATIC if data is not managed by SQLite
+        int result = sqlite3_step(stmt);
+        if (result != SQLITE_DONE)
+        {
+            cerr << "Error inserting data: " << sqlite3_errmsg(db) << endl;
+            return;
+        }
+        sqlite3_finalize(stmt);
+        cout << "Inserted fingerprint data into table successfully." << endl;
+    }
+
+    // Close the database when done
+    sqlite3_close(db);
+}
+
+unsigned char **retrieve_all_fingerprints(int &numFingerprints)
+{
+    unsigned char **fingerprints = nullptr;
+    numFingerprints = 0;
 
     sqlite3 *db;
     int rc = sqlite3_open("fingerprints.db", &db);
@@ -94,6 +132,26 @@ vector<vector<unsigned char>> retrieve_all_fingerprints()
         return fingerprints;
     }
 
+    // Count the number of fingerprints in the database
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        numFingerprints++;
+    }
+
+    // Allocate memory for the array of pointers
+    fingerprints = new unsigned char *[numFingerprints];
+
+    // Reset the statement for data retrieval
+    rc = sqlite3_prepare_v2(db, selectSQL, -1, &stmt, 0);
+    if (rc != SQLITE_OK)
+    {
+        cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
+        sqlite3_close(db);
+        delete[] fingerprints; // Clean up memory
+        return fingerprints;
+    }
+
+    int fingerprintIndex = 0;
     while (sqlite3_step(stmt) == SQLITE_ROW)
     {
         const void *data = sqlite3_column_blob(stmt, 0);
@@ -101,8 +159,10 @@ vector<vector<unsigned char>> retrieve_all_fingerprints()
         if (data && dataSize > 0)
         {
             const unsigned char *fingerprintData = static_cast<const unsigned char *>(data); // Cast the pointer
-            vector<unsigned char> fingerprint(fingerprintData, fingerprintData + dataSize);
-            fingerprints.push_back(fingerprint);
+            unsigned char *fingerprint = new unsigned char[dataSize];
+            memcpy(fingerprint, fingerprintData, dataSize); // Copy data to the new array
+            fingerprints[fingerprintIndex] = fingerprint;
+            fingerprintIndex++;
         }
     }
 
@@ -126,8 +186,6 @@ int main()
         return 1;
     }
 
-    cout << "Initialised DPFPDD." << endl;
-
     DPFPDD_STATUS dpStatus;
     DPFPDD_DEV_INFO devInfoArray[10];
     unsigned int devCount = sizeof(devInfoArray) / sizeof(devInfoArray[0]);
@@ -139,7 +197,6 @@ int main()
         _getch();
         return 1; // Return 1 on error
     }
-    cout << "Gotten fingerprint device count." << endl;
 
     dpStatus = dpfpdd_query_devices(&devCount, devInfoArray);
     if (dpStatus != DPFPDD_SUCCESS)
@@ -183,17 +240,18 @@ int main()
         cout << "Fingerprint reader opened successfully." << endl;
 
         // Configure capture parameters
+        cout << "Place your finger..." << endl;
+
         DPFPDD_CAPTURE_PARAM captureParam = {0};
         captureParam.size = sizeof(captureParam);
-        captureParam.image_fmt = DPFPDD_IMG_FMT_ANSI381;
+        captureParam.image_fmt = DPFPDD_IMG_FMT_ISOIEC19794;
         captureParam.image_proc = DPFPDD_IMG_PROC_NONE;
         captureParam.image_res = 700;
 
-        unsigned int image_size;
+        unsigned int image_size = 500000;
         unsigned char *image_data;
 
         // Allocate memory for image_data (you may need to adjust the size)
-        image_size = 500000; // Adjust this size as needed
         image_data = (unsigned char *)malloc(image_size);
 
         // Initialize capture result
@@ -209,28 +267,37 @@ int main()
             _getch();
             return 1;
         }
-
         cout << "Captured fingerprint image." << endl;
 
         // Convert the captured fingerprint image to FMD format
-        DPFJ_FMD_FORMAT fmdFormat = DPFJ_FMD_ANSI_378_2004;
+        DPFJ_FMD_FORMAT fmdFormat = DPFJ_FMD_ISO_19794_2_2005;
+
         unsigned char *pFeatures = NULL;
         unsigned int nFeaturesSize = MAX_FMD_SIZE;
         pFeatures = new unsigned char[nFeaturesSize];
-        int conversionResult = dpfj_create_fmd_from_fid(captureParam.image_fmt, image_data, image_size, fmdFormat, pFeatures, &nFeaturesSize);
 
+        int conversionResult = dpfj_create_fmd_from_fid(captureParam.image_fmt, image_data, image_size, fmdFormat, pFeatures, &nFeaturesSize);
         if (conversionResult != DPFPDD_SUCCESS)
         {
             handleDPFPDDError(captureStatus);
             _getch();
             return 1;
         }
-
         cout << "Converted fingerprint image to FMD successfully." << endl;
 
-        vector<vector<unsigned char>> allFingerprints = retrieve_all_fingerprints();
+        unsigned int score = 0;
+        int compareResult = dpfj_compare(fmdFormat, pFeatures, nFeaturesSize, 0, fmdFormat, pFeatures, nFeaturesSize, 0, &score);
 
-        cout << "Number of fingerprints: " << sizeof(allFingerprints) << endl;
+        cout << "Comparison has been carried out." << endl;
+
+        if (compareResult != DPFJ_SUCCESS)
+        {
+            handleDPFPDDError(compareResult);
+            _getch();
+            return 1;
+        }
+
+        cout << "Score: " << score << endl;
     }
 
     // Close the fingerprint reader
