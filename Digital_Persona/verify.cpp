@@ -1,10 +1,8 @@
 #include <conio.h>
-#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <sqlite3.h>
 #include <string>
-#include <vector>
 
 #include "dpfj.h"
 #include "dpfpdd.h"
