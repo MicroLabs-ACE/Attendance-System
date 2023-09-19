@@ -11,11 +11,7 @@ using namespace std;
 // Global variable to store the SQLite database connection
 sqlite3 *db = nullptr;
 
-DPFPDD_DEV_INFO devInfoArray[2];
-unsigned int deviceCount = sizeof(devInfoArray) / sizeof(devInfoArray[0]);
-string deviceName;
 DPFPDD_DEV deviceHandle = nullptr;
-unsigned int deviceIndex = 0;
 unsigned int dpi;
 
 void handleError(const string &errorMsg)
@@ -45,6 +41,10 @@ void initialiseDatabase()
 
 void fingerprintDeviceSetup()
 {
+    DPFPDD_DEV_INFO devInfoArray[2];
+    unsigned int deviceCount = sizeof(devInfoArray) / sizeof(devInfoArray[0]);
+    unsigned int deviceIndex;
+
     int status;
 
     status = dpfpdd_init();
@@ -55,27 +55,37 @@ void fingerprintDeviceSetup()
     if (status != DPFPDD_SUCCESS)
         handleError("Device query failed");
 
-    string defaultDeviceName = "&0000&0010";
-    size_t isDefaultDevice;
-
     if (deviceCount == 0)
         handleError("No fingerprint devices found");
 
     else
     {
+        string defaultDeviceName = "&0000&0010";
+        string selectDeviceName;
+        size_t isDefaultDevice;
+
         for (unsigned int i = 0; i < deviceCount; i++)
         {
-            string selectDeviceName = devInfoArray[0].name;
+            selectDeviceName = devInfoArray[i].name;
             isDefaultDevice = selectDeviceName.find(defaultDeviceName);
             if (isDefaultDevice == string::npos)
-                deviceName = selectDeviceName;
+            {
+                deviceIndex = i;
+                break;
+            }
         }
     }
 
-    if (deviceName.length() == 0)
+    if (deviceIndex)
         handleError("No external fingerprint devices found.");
 
-    cout << "Success: Found fingerprint device." << endl;
+    char *deviceName = devInfoArray[deviceIndex].name;
+
+    status = dpfpdd_open_ext(deviceName, DPFPDD_PRIORITY_COOPERATIVE, &deviceHandle);
+    if (status != DPFPDD_SUCCESS)
+        handleError("Couldn't open fingerprint device.");
+
+    cout << "Success: Fingerprint device opened." << endl;
 }
 
 int main()
