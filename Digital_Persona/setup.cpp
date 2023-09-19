@@ -11,8 +11,20 @@ using namespace std;
 // Global variable to store the SQLite database connection
 sqlite3 *db = nullptr;
 
+int status;
+
 DPFPDD_DEV deviceHandle = nullptr;
-unsigned int dpi;
+
+DPFPDD_CAPTURE_PARAM captureParam;
+DPFPDD_CAPTURE_RESULT captureResult;
+
+DPFPDD_IMAGE_FMT fingerprintImageFormat = DPFPDD_IMG_FMT_ISOIEC19794;
+unsigned char *fingerprintImageData;
+unsigned int fingerprintImageSize;
+
+DPFJ_FMD_FORMAT fingerprintFMDFormat = DPFJ_FMD_ISO_19794_2_2005;
+unsigned char *fingerprintFMData;
+unsigned int fingerprintFMDataSize;
 
 void handleError(const string &errorMsg)
 {
@@ -44,8 +56,6 @@ void fingerprintDeviceSetup()
     DPFPDD_DEV_INFO devInfoArray[2];
     unsigned int deviceCount = sizeof(devInfoArray) / sizeof(devInfoArray[0]);
     unsigned int deviceIndex;
-
-    int status;
 
     status = dpfpdd_init();
     if (status != DPFPDD_SUCCESS)
@@ -88,10 +98,43 @@ void fingerprintDeviceSetup()
     cout << "Success: Fingerprint device opened." << endl;
 }
 
+void captureAndConvertFingerprint()
+{
+    captureParam = {0};
+    captureParam.size = sizeof(captureParam);
+    captureParam.image_fmt = DPFPDD_IMG_FMT_ISOIEC19794;
+    captureParam.image_proc = DPFPDD_IMG_PROC_NONE;
+    captureParam.image_res = 500;
+
+    fingerprintImageSize = 500000;
+    fingerprintImageData = (unsigned char *)malloc(fingerprintImageSize);
+
+    captureResult = {0};
+    captureResult.size = sizeof(captureResult);
+    captureResult.info.size = sizeof(captureResult.info);
+
+    // === Capture fingerprint ===
+    status = dpfpdd_capture(deviceHandle, &captureParam, (unsigned int)(-1), &captureResult, &fingerprintImageSize, fingerprintImageData);
+    if (status)
+        handleError("Couldn't capture fingerprint.");
+
+    // === Convert fingerprint ===
+    fingerprintFMData = NULL;
+    fingerprintFMDataSize = MAX_FMD_SIZE;
+
+    status = dpfj_create_fmd_from_fid(fingerprintImageFormat, fingerprintImageData, fingerprintImageSize, fingerprintFMDFormat, fingerprintFMData, &fingerprintFMDataSize);
+    if (status)
+        handleError("Couldn't convert fingerprint to FMD.");
+
+    cout << "Success: Captured and converted fingerprint image to FMD." << endl;
+}
+
 int main()
 {
     fingerprintDeviceSetup();
     initialiseDatabase();
+
+    // enrollFingerprint();
 
     dpfpdd_exit();
     _getch();
