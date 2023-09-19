@@ -51,7 +51,7 @@ void initialiseDatabase()
     cout << "Success: Initialised fingerprints database." << endl;
 }
 
-void fingerprintDeviceSetup()
+void setupFingerprintDevice()
 {
     DPFPDD_DEV_INFO devInfoArray[2];
     unsigned int deviceCount = sizeof(devInfoArray) / sizeof(devInfoArray[0]);
@@ -129,12 +129,34 @@ void captureAndConvertFingerprint()
     cout << "Success: Captured and converted fingerprint image to FMD." << endl;
 }
 
+// Function to insert binary data (fingerprint) into the database
+void enrollFingerprint()
+{
+    const char *insertSQL = "INSERT INTO fingerprintTable (binary_data, size) VALUES (?, ?);";
+
+    // Prepare the SQL statement
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, insertSQL, -1, &stmt, 0) == SQLITE_OK)
+    {
+        // Bind the unsigned char array as a BLOB
+        sqlite3_bind_blob(stmt, 1, fingerprintFMData, fingerprintFMDataSize, SQLITE_STATIC); // Use SQLITE_STATIC if data is not managed by SQLite
+        sqlite3_bind_int(stmt, 2, fingerprintFMDataSize);                                    // Bind the size
+        status = sqlite3_step(stmt);
+        if (!status)
+            handleError("Could not enroll fingerprint.");
+
+        sqlite3_finalize(stmt);
+
+        cout << "Success: Enrolled fingerprint." << endl;
+    }
+}
+
 int main()
 {
-    fingerprintDeviceSetup();
+    setupFingerprintDevice();
     initialiseDatabase();
-
-    // enrollFingerprint();
+    captureAndConvertFingerprint();
+    enrollFingerprint();
 
     dpfpdd_exit();
     _getch();
