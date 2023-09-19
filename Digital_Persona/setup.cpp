@@ -26,7 +26,24 @@ void handleError(const string &errorMsg)
     exit(1);
 }
 
-void setup()
+void initialiseDatabase()
+{
+    int rc = sqlite3_open("fingerprints.db", &db);
+
+    if (rc)
+        handleError("Can't open database.");
+
+    // SQL statement to create the table with an auto-incremented primary key
+    const char *createTableSQL = "CREATE TABLE IF NOT EXISTS fingerprintTable (id INTEGER PRIMARY KEY AUTOINCREMENT, binary_data BLOB, size INTEGER);";
+    rc = sqlite3_exec(db, createTableSQL, 0, 0, 0);
+
+    if (rc)
+        handleError("Couldn't create fingerprints table.");
+
+    cout << "Success: Initialised fingerprints database." << endl;
+}
+
+void fingerprintDeviceSetup()
 {
     int status;
 
@@ -63,7 +80,8 @@ void setup()
 
 int main()
 {
-    setup();
+    fingerprintDeviceSetup();
+    initialiseDatabase();
 
     dpfpdd_exit();
     _getch();
