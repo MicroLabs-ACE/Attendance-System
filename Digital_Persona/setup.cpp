@@ -26,6 +26,44 @@ DPFJ_FMD_FORMAT fingerprintFMDFormat = DPFJ_FMD_ISO_19794_2_2005;
 unsigned char *fingerprintFMData;
 unsigned int fingerprintFMDataSize;
 
+unsigned char **fingerprints;
+unsigned int *fingerprintSizes;
+
+// Function to handle DPFPDD and DPFJ errors
+void handleDPFPDDError(int errorCode)
+{
+    switch (errorCode)
+    {
+    case DPFPDD_E_FAILURE:
+        cout << "DPFPDD_E_FAILURE: Unexpected failure." << endl;
+        break;
+
+    case DPFPDD_E_INVALID_DEVICE:
+        cout << "DPFPDD_E_INVALID_DEVICE: Invalid reader handle." << endl;
+        break;
+
+    case DPFPDD_E_DEVICE_BUSY:
+        cout << "DPFPDD_E_DEVICE_BUSY: Another operation is in progress." << endl;
+        break;
+
+    case DPFPDD_E_MORE_DATA:
+        cout << "DPFPDD_E_MORE_DATA: Insufficient memory is allocated for the image_data. The required size is in the image_size." << endl;
+        break;
+
+    case DPFPDD_E_INVALID_PARAMETER:
+        cout << "DPFPDD_E_INVALID_PARAMETER: Invalid parameter set in function." << endl;
+        break;
+
+    case DPFPDD_E_DEVICE_FAILURE:
+        cout << "DPFPDD_E_DEVICE_FAILURE: Failed to start capture, reader is not functioning properly." << endl;
+        break;
+
+    default:
+        cout << "Unknown error code: " << errorCode << endl;
+        break;
+    }
+}
+
 void handleError(const string &errorMsg)
 {
     cerr << "Error: " << errorMsg << endl;
@@ -136,27 +174,110 @@ void enrollFingerprint()
 
     // Prepare the SQL statement
     sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, insertSQL, -1, &stmt, 0) == SQLITE_OK)
+    status = sqlite3_prepare_v2(db, insertSQL, -1, &stmt, 0);
+    if (status != SQLITE_OK)
+        handleError("Could not enroll fingerprint.");
+
+    sqlite3_bind_blob(stmt, 1, fingerprintFMData, fingerprintFMDataSize, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, fingerprintFMDataSize);
+
+    status = sqlite3_step(stmt);
+    if (!status)
+        handleError("Could not enroll fingerprint.");
+
+    sqlite3_finalize(stmt);
+
+    cout << "Success: Enrolled fingerprint." << endl;
+}
+
+unsigned char **retrieveFingerprints(int &numFingerprints, unsigned int *&fingerprintSizes)
+{
+    unsigned char **fingerprints = nullptr;
+    fingerprintSizes = nullptr;
+    numFingerprints = 0;
+
+    const char *selectSQL = "SELECT binary_data, size FROM fingerprintTable;";
+    sqlite3_stmt *stmt;
+
+    status = sqlite3_prepare_v2(db, selectSQL, -1, &stmt, 0);
+    if (status != SQLITE_OK)
     {
-        // Bind the unsigned char array as a BLOB
-        sqlite3_bind_blob(stmt, 1, fingerprintFMData, fingerprintFMDataSize, SQLITE_STATIC); // Use SQLITE_STATIC if data is not managed by SQLite
-        sqlite3_bind_int(stmt, 2, fingerprintFMDataSize);                                    // Bind the size
-        status = sqlite3_step(stmt);
-        if (!status)
-            handleError("Could not enroll fingerprint.");
-
-        sqlite3_finalize(stmt);
-
-        cout << "Success: Enrolled fingerprint." << endl;
+        cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
+        sqlite3_close(db);
+        return fingerprints;
     }
+
+    // Count the number of fingerprints in the database
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+        numFingerprints++;
+
+    // Allocate memory for the array of pointers and sizes
+    fingerprints = new unsigned char *[numFingerprints];
+    fingerprintSizes = new unsigned int[numFingerprints];
+
+    // Reset the statement for data retrieval
+    status = sqlite3_prepare_v2(db, selectSQL, -1, &stmt, 0);
+    if (status != SQLITE_OK)
+    {
+        cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
+        sqlite3_close(db);
+        delete[] fingerprints;
+        delete[] fingerprintSizes;
+        return fingerprints;
+    }
+
+    int fingerprintIndex = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        const void *data = sqlite3_column_blob(stmt, 0);
+        int dataSize = sqlite3_column_bytes(stmt, 0);
+        int size = sqlite3_column_int(stmt, 1);
+
+        if (data && dataSize > 0)
+        {
+            const unsigned char *fingerprintData = static_cast<const unsigned char *>(data); // Cast the pointer
+            unsigned char *fingerprint = new unsigned char[dataSize];
+            memcpy(fingerprint, fingerprintData, dataSize);
+            fingerprints[fingerprintIndex] = fingerprint;
+            fingerprintSizes[fingerprintIndex] = size;
+            fingerprintIndex++;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    return fingerprints;
+}
+
+void verifyFingerprint()
+{
+    int numFingerprints;
+    unsigned int *fingerprintSizes;
+    unsigned char **allFingerprints = retrieveFingerprints(numFingerprints, fingerprintSizes);
+
+    unsigned int thresholdScore = 5;
+    unsigned int candidateCnt;
+    DPFJ_CANDIDATE candidate;
+
+    status = dpfj_identify(fingerprintFMDFormat, fingerprintFMData, fingerprintFMDataSize, 0, fingerprintFMDFormat, numFingerprints, allFingerprints, fingerprintSizes, thresholdScore, &candidateCnt, &candidate);
+    if (!status)
+        handleError("Could not verify fingerprint.");
+
+    cout << "Fingerprint Index: " << candidate.fmd_idx << endl;
 }
 
 int main()
 {
     setupFingerprintDevice();
     initialiseDatabase();
+    // for (unsigned int i = 0; i < 4; i++)
+    // {
+    //     captureAndConvertFingerprint();
+    //     enrollFingerprint();
+    // }
+
     captureAndConvertFingerprint();
-    enrollFingerprint();
+    verifyFingerprint();
 
     dpfpdd_exit();
     _getch();

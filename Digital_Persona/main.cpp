@@ -8,8 +8,8 @@
 
 using namespace std;
 
-// Function to handle DPFPDD errors
-void errorMessage(int errorCode)
+
+void handleDPFPDDError(int errorCode)
 {
     switch (errorCode)
     {
@@ -46,6 +46,10 @@ void errorMessage(int errorCode)
     cout << "Press any key to exit!" << endl;
     _getch();
 }
+
+void handleDPFJError(int errorCode) {}
+
+void handleSQLiteError(int errorCode) {}
 
 // Function to create an SQLite database and the fingerprintTable
 void initialiseDatabase()
@@ -186,7 +190,7 @@ int main()
     int initResult = dpfpdd_init();
     if (initResult != DPFPDD_SUCCESS)
     {
-        errorMessage(initResult);
+        handleDPFPDDError(initResult);
         return 1;
     }
 
@@ -200,7 +204,7 @@ int main()
     queryResult = dpfpdd_query_devices(&devCount, devInfoArray);
     if (queryResult != DPFPDD_SUCCESS)
     {
-        errorMessage(queryResult);
+        handleDPFPDDError(queryResult);
         return 1;
     }
 
@@ -234,7 +238,7 @@ int main()
     int openResult = dpfpdd_open_ext(readerName, DPFPDD_PRIORITY_COOPERATIVE, &readerHandle);
     if (openResult != DPFPDD_SUCCESS)
     {
-        errorMessage(openResult);
+        handleDPFPDDError(openResult);
         return 1; // Return 1 on error
     }
     else
@@ -268,7 +272,7 @@ int main()
             int captureStatus = dpfpdd_capture(readerHandle, &captureParam, (unsigned int)(-1), &captureResult, &image_size, image_data);
             if (captureStatus != DPFPDD_SUCCESS)
             {
-                errorMessage(captureStatus);
+                handleDPFPDDError(captureStatus);
                 return 1;
             }
 
@@ -283,7 +287,7 @@ int main()
             int conversionResult = dpfj_create_fmd_from_fid(captureParam.image_fmt, image_data, image_size, fmdFormat, fingerprint, &fingerprintSize);
             if (conversionResult != DPFPDD_SUCCESS)
             {
-                errorMessage(captureStatus);
+                handleDPFPDDError(captureStatus);
                 return 1;
             }
             cout << "Converted fingerprint image to FMD successfully." << endl;
@@ -313,7 +317,7 @@ int main()
                 int identifyResult = dpfj_identify(fmdFormat, fingerprint, fingerprintSize, 0, fmdFormat, numFingerprints, allFingerprints, fingerprintSizes, thresholdScore, &candidateCnt, &candidates);
                 if (identifyResult != DPFJ_SUCCESS)
                 {
-                    errorMessage(identifyResult);
+                    handleDPFPDDError(identifyResult);
                     return 1;
                 }
 
