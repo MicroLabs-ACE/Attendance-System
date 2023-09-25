@@ -165,7 +165,7 @@ void enrolFingerprint()
     captureParam.size = sizeof(captureParam);
     captureParam.image_fmt = DPFPDD_IMG_FMT_ISOIEC19794;
     captureParam.image_proc = DPFPDD_IMG_PROC_NONE;
-    captureParam.image_res = 80;
+    captureParam.image_res = 700;
 
     DPFPDD_CAPTURE_RESULT captureResult = {0};
     captureResult.size = sizeof(captureResult);
@@ -187,7 +187,6 @@ void enrolFingerprint()
     unsigned char *fingerprintFMData = new unsigned char[fingerprintFMDSize];
 
     status = dpfj_create_fmd_from_fid(captureParam.image_fmt, fingerprintImageData, fingerprintImageSize, fingerprintFMDFormat, fingerprintFMData, &fingerprintFMDSize);
-    status = dpfpdd_capture(deviceHandle, &captureParam, (unsigned int)(-1), &captureResult, &fingerprintImageSize, fingerprintImageData);
     if (status != DPFPDD_SUCCESS)
     {
         cerr << "Could not convert fingerprint." << endl;
@@ -204,8 +203,7 @@ int main()
 {
     initialiseDatabase();
     setupFingerprintDevice();
-    for (unsigned int i = 0; i < 5; i++)
-        enrolFingerprint();
+    enrolFingerprint();
     _getch();
     return 0;
 }
