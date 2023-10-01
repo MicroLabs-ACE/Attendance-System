@@ -1,0 +1,14 @@
+GUI
+g++ -o example_win32_directx11.exe ./imgui/examples/example_win32_directx11/main.cpp ./imgui/backends/imgui_impl_dx11.cpp ./imgui/backends/imgui_impl_win32.cpp ./imgui/imgui*.cpp -I ./imgui -I ./imgui/backends -ld3d11 -ld3dcompiler -lgdi32  -ldwmapi -static -static-libgcc -static-libstdc++
+g++ -o main.exe main.cpp ./imgui/backends/imgui_impl_dx11.cpp ./imgui/backends/imgui_impl_win32.cpp ./imgui/imgui*.cpp -I./imgui -I./imgui/backends -ld3d11 -ld3dcompiler -lgdi32 -ldwmapi -lsqlite3 -static -static-libgcc -static-libstdc++
+g++ -o main.exe main.cpp ./imgui/backends/imgui_impl_dx11.cpp ./imgui/backends/imgui_impl_win32.cpp ./imgui/imgui*.cpp -I./DigitalPersona -I./imgui -I./imgui/backends -ld3d11 -ld3dcompiler -lgdi32 -ldwmapi -lsqlite3 -ldpfj -L./DigitalPersona -ldpfpdd -L./DigitalPersona -static -static-libgcc -static-libstdc++
+
+DigitalPersona
+g++ -o fingerprint.exe fingerprint.cpp -I./DigitalPersona -L./DigitalPersona -ldpfj -L./DigitalPersona -ldpfpdd  -static
+
+Database
+g++ -o database.exe database.cpp -lsqlite3 -static
+
+Main
+g++ -o main.exe main.cpp -I./DigitalPersona -L./DigitalPersona -ldpfj -L./DigitalPersona -ldpfpdd -lsqlite3 -static
+g++ -o main.exe main.cpp ./backends/imgui_impl_dx11.cpp ./backends/imgui_impl_win32.cpp ./imgui*.cpp -I. -I./backends -L. -ldpfj -ldpfpdd -lsqlite3 -ld3d11 -ld3dcompiler -lgdi32 -ldwmapi -static -static-libgcc -static-libstdc++
