@@ -1,6 +1,0 @@
-{
-    "board": "arduino:avr:uno",
-    "port": "COM12",
-    "programmer": "avrispmkii",
-    "sketch": "SeriallyControlledFingerprintSensor.ino"
-}
