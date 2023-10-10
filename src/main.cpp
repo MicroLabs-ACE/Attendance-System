@@ -213,17 +213,6 @@ FingerprintMinutiaeData captureAndConvertFingerprint()
     return fmd;
 }
 
-void saveEvent()
-{
-    ofstream csvFile(currEventData.name);
-    if (csvFile.is_open())
-    {
-        for (const auto &row : currEventData.persons)
-        {
-        }
-    }
-}
-
 void enrol(Person person)
 {
     const char *insertPersonSQL = "INSERT INTO Person (id, first_name, last_name) VALUES (?, ?, ?);";
@@ -304,8 +293,6 @@ void insertFingerprint(string id)
 
     statusMessage = "Inserted fingerprint.";
 }
-
-
 
 FingerprintMinutiaeData retrieveFingerprint(string id)
 {
@@ -493,6 +480,36 @@ void initialiseDatabase()
     cout << "Initialised database." << endl;
 }
 
+// Function to write a vector of Person objects to a CSV file
+void writeDataToCSV()
+{
+    // Open the CSV file for writing
+    std::ofstream outputFile(currEventData.name + ".csv");
+
+    // Check if the file was opened successfully
+    if (!outputFile.is_open())
+    {
+        std::cerr << "Failed to open file for writing." << std::endl;
+        return;
+    }
+
+    // Write the header row to the CSV file
+    outputFile << "First Name,Last Name,Email,Sign In Time" << std::endl;
+
+    // Write each person's data to the CSV file
+    for (const Person &person : currEventData.persons)
+    {
+        if (!person.logTimestamp.empty())
+        {
+            outputFile << person.first_name << "," << person.last_name << ","
+                       << person.id << "," << person.logTimestamp << std::endl;
+        }
+    }
+
+    // Close the CSV file
+    outputFile.close();
+}
+
 // Main code
 int main()
 {
@@ -678,8 +695,11 @@ int main()
                         std::cout << "Event Ended" << std::endl;
                         currEventData.name = event_name_input;
 
-                        thread saveEvntThr(saveEvent);
-                        saveEvntThr.detach();
+                        if (!currEventData.name.empty())
+                        {
+                            thread saveEvntThr(writeDataToCSV);
+                            saveEvntThr.detach();
+                        }
                     }
                 }
 
