@@ -1,12 +1,10 @@
 #include <chrono>
 #include <fstream>
-#include <future>
 #include <iostream>
 #include <map>
 #include <regex>
 #include <string>
 #include <thread>
-#include <tuple>
 #include <vector>
 
 #include <conio.h>
