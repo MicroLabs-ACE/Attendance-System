@@ -9,6 +9,7 @@
             "includePath": [
                 "C:\\msys64\\mingw64\\include",
                 "C:\\Users\\Victor Momodu\\Documents\\Arduino\\libraries",
+                "C:/Users/Victor Momodu/Documents/Programming/Hardware Engineering/Code/Biometric-Attendance-System/include/**",
                 "C:/Users/Victor Momodu/Documents/Arduino/libraries/Adafruit_Fingerprint_Sensor_Library"
             ],
             "forcedInclude": [],

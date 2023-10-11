@@ -64,13 +64,13 @@ struct EventData
 
 EventData currEventData;
 
-struct FingerprintImageData
+struct FID // Fingerprint Image Data
 {
     unsigned int size = 500000;
     unsigned char *data = (unsigned char *)malloc(size);
 };
 
-struct FingerprintMinutiaeData
+struct FMD // Fingerprint Minutiae Data
 {
     unsigned int size = MAX_FMD_SIZE;
     unsigned char *data = new unsigned char[size];
@@ -176,7 +176,7 @@ void setFingerprintDevice()
     statusMessage = "Initialised and opened fingerprint device.";
 }
 
-FingerprintMinutiaeData captureAndConvertFingerprint()
+FMD captureAndConvertFingerprint()
 {
     statusMessage = "Place your finger...";
 
@@ -190,20 +190,20 @@ FingerprintMinutiaeData captureAndConvertFingerprint()
     captureResult.size = sizeof(captureResult);
     captureResult.info.size = sizeof(captureResult.info);
 
-    FingerprintImageData fid;
+    FID fid;
     rc = dpfpdd_capture(deviceHandle, &captureParam, (unsigned int)(-1), &captureResult, &fid.size, fid.data);
     if (rc != DPFPDD_SUCCESS)
     {
         statusMessage = "Could not capture fingerprint.";
-        return FingerprintMinutiaeData();
+        return FMD();
     }
 
-    FingerprintMinutiaeData fmd;
+    FMD fmd;
     rc = dpfj_create_fmd_from_fid(captureParam.image_fmt, fid.data, fid.size, FMDFormat, fmd.data, &fmd.size);
     if (rc != DPFJ_SUCCESS)
     {
         statusMessage = "Could not convert fingerprint.";
-        return FingerprintMinutiaeData();
+        return FMD();
     }
 
     statusMessage = "Captured and converted fingerprint.";
@@ -251,11 +251,11 @@ void enrol(Person person)
 
 void insertFingerprint(string id)
 {
-    FingerprintMinutiaeData fmd = captureAndConvertFingerprint();
+    FMD fmd = captureAndConvertFingerprint();
 
     if (!fmd.isEmpty)
     {
-        const char *insertFingerprintSQL = "UPDATE Person SET fingerprint_data = ?, fingerprint_size = ? WHERE id = ?";
+        const char *insertFingerprintSQL = "UPDATE Person SET fingerprintData = ? WHERE id = ?";
         sqlite3_stmt *insertFingerprintStmt;
 
         if (sqlite3_prepare_v2(db, insertFingerprintSQL, -1, &insertFingerprintStmt, 0) == SQLITE_OK)
@@ -294,11 +294,11 @@ void insertFingerprint(string id)
     statusMessage = "Inserted fingerprint.";
 }
 
-FingerprintMinutiaeData retrieveFingerprint(string id)
+FMD retrieveFingerprint(string id)
 {
-    FingerprintMinutiaeData fmd;
+    FMD fmd;
 
-    const char *retrieveFingerprintSQL = "SELECT fingerprint_data, fingerprint_size FROM Person WHERE id = ?";
+    const char *retrieveFingerprintSQL = "SELECT fingerprintData FROM Person WHERE id = ?";
     sqlite3_stmt *retrieveFingerprintStmt;
     if (sqlite3_prepare_v2(db, retrieveFingerprintSQL, -1, &retrieveFingerprintStmt, 0) == SQLITE_OK)
     {
@@ -364,14 +364,14 @@ void verifyFingerprint()
             int index = 0;
             for (const string &id : vfd.personIDs)
             {
-                FingerprintMinutiaeData fmd = retrieveFingerprint(id);
+                FMD fmd = retrieveFingerprint(id);
                 vfd.fingerprints[index] = fmd.data;
                 vfd.fingerprintSizes[index] = fmd.size;
 
                 index++;
             }
 
-            FingerprintMinutiaeData verifyFMD = captureAndConvertFingerprint();
+            FMD verifyFMD = captureAndConvertFingerprint();
 
             unsigned int thresholdScore = 5;
             unsigned int candidateCount = 1;
