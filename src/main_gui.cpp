@@ -1,3 +1,5 @@
+// TODO: Create a table with emails, sign in and sign out when an event is registered i.e. started.
+
 #include <chrono>
 #include <fstream>
 #include <functional>
@@ -318,7 +320,7 @@ void insertPerson(Person personToInsert)
         // Check for errors
         if (rc != SQLITE_DONE)
         {
-            sqlite3_finalize(insertPersonStmt); // Don't forget to finalize the statement
+            sqlite3_finalize(insertPersonStmt);
             return;
         }
 
@@ -423,7 +425,7 @@ void insertEvent(EventData eventDataToInsert)
         // Check for errors
         if (rc != SQLITE_DONE)
         {
-            sqlite3_finalize(insertEventDataStmt); // Don't forget to finalize the statement
+            sqlite3_finalize(insertEventDataStmt);
             return;
         }
 
@@ -447,7 +449,7 @@ void registerEvent()
     {
         insertEvent(currentEventData);
 
-        string createEventTableSQL = "CREATE TABLE IF NOT EXISTS " + currentEventData.name;
+        string createEventTableSQL = "CREATE TABLE IF NOT EXISTS " + currentEventData.name + " (email TEXT, sign_in TEXT, sign_out TEXT)";
         rc = sqlite3_exec(db, createEventTableSQL.c_str(), 0, 0, 0);
         if (rc != SQLITE_OK)
         {
@@ -455,7 +457,7 @@ void registerEvent()
             return;
         }
 
-        const char *getInviteesSQL = "SELECT email, fingerprint_data FROM Person";
+        const char *getInviteesSQL = "SELECT email FROM Person";
         sqlite3_stmt *getInviteesStmt;
 
         if (sqlite3_prepare_v2(db, getInviteesSQL, -1, &getInviteesStmt, 0) == SQLITE_OK)
@@ -463,26 +465,33 @@ void registerEvent()
             while (sqlite3_step(getInviteesStmt) == SQLITE_ROW)
             {
                 const char *email = reinterpret_cast<const char *>(sqlite3_column_text(getInviteesStmt, 0));
-                const void *_fingerprintData = sqlite3_column_blob(getInviteesStmt, 1);
-                int fingerprintSize = sqlite3_column_bytes(getInviteesStmt, 40);
-                if (_fingerprintData && fingerprintSize > 0)
+                string insertInviteeSQL = "INSERT INTO " + currentEventData.name + " (email) VALUES (?)";
+                sqlite3_stmt *insertInviteeStmt;
+                if (sqlite3_prepare_v2(db, insertInviteeSQL.c_str(), -1, &insertInviteeStmt, 0) == SQLITE_OK)
                 {
-                    FMD fmd;
-                    const unsigned char *fingerprintData = static_cast<const unsigned char *>(_fingerprintData);
-                    fmd.data = new unsigned char[fingerprintSize];
-                    memcpy(fmd.data, fingerprintData, fingerprintSize);
-                    fmd.size = fingerprintSize;
-
-                    Invitee invitee;
-                    invitee.email = string(email);
-                    invitee.fmd = fmd;
-                    currentEventData.invitees.push_back(invitee);
+                    // Bind parameters
+                    sqlite3_bind_text(insertInviteeStmt, 1, email, -1, SQLITE_STATIC);
                 }
                 else
                 {
-                    cerr << "No fingerprint found for the email supplied." << endl;
-                    sqlite3_finalize(getInviteesStmt);
+                    cerr << "Could not prepare invitee insertion statement." << endl;
+                    return;
                 }
+
+                // Execute the statement
+                rc = sqlite3_step(insertInviteeStmt);
+
+                // Check for errors
+                if (rc != SQLITE_DONE)
+                {
+                    sqlite3_finalize(insertInviteeStmt);
+                    cerr << "Could not insert invitee(s)." << endl;
+                    return;
+                }
+
+                // Finalize the statement
+                sqlite3_finalize(insertInviteeStmt);
+                cout << "Inserted invitee." << endl;
             }
         }
     }
