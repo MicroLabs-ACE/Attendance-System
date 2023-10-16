@@ -339,7 +339,7 @@ void verifyFingerprint()
     while (burstMode)
     {
         VerifiableFingerprintData vfd;
-        vfd.numberOfFingerprints = size(currEventData.persons);
+        vfd.numberOfFingerprints = sizeof(currEventData.persons);
         if (vfd.numberOfFingerprints == 0)
         {
             cerr << "No person added to event." << endl;

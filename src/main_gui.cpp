@@ -1,4 +1,6 @@
-// TODO: Create a table with emails, sign in and sign out when an event is registered i.e. started.
+// TODO: Verify fingerprints as sign_in
+// TODO: Put email retrieval into its own function
+// ASSUME: Every email registered for an event is the in the Person table and that every email has a fingerprint
 
 #include <chrono>
 #include <fstream>
@@ -393,17 +395,12 @@ void enrolPerson()
     }
 }
 
-struct Invitee
-{
-    string email;
-    FMD fmd;
-};
-
 struct EventData
 {
     string name;
-    vector<Invitee> invitees;
-    bool shouldRegister;
+    vector<string> emails;
+    unsigned int *fingerprintSizes;
+    unsigned char **fingerprints;
     bool isOngoing;
 };
 
@@ -497,9 +494,116 @@ void registerEvent()
     }
 }
 
+void retrieveFingerprints()
+{
+    size_t numberOfFingerprints = currentEventData.emails.size();
+    // DEBUG
+    cout << "Number of fingerprints: " << numberOfFingerprints << endl;
+    // DEBUG
+
+    if (numberOfFingerprints == 0)
+    {
+        cerr << "No person added to event." << endl;
+        return;
+    }
+    else
+    {
+        currentEventData.fingerprints = new unsigned char *[numberOfFingerprints];
+        currentEventData.fingerprintSizes = new unsigned int[numberOfFingerprints];
+
+        for (size_t index = 0; index < numberOfFingerprints; index++)
+        {
+            const char *retrieveFingerprintSQL = "SELECT fingerprint_data FROM Person WHERE email = ?";
+            sqlite3_stmt *retrieveFingerprintStmt;
+            if (sqlite3_prepare_v2(db, retrieveFingerprintSQL, -1, &retrieveFingerprintStmt, 0) == SQLITE_OK)
+            {
+                sqlite3_bind_text(retrieveFingerprintStmt, 1, currentEventData.emails[index].c_str(), -1, SQLITE_STATIC);
+                while (sqlite3_step(retrieveFingerprintStmt) == SQLITE_ROW)
+                {
+                    const void *fingerprintData = sqlite3_column_blob(retrieveFingerprintStmt, 0);
+                    int fingerprintSize = sqlite3_column_bytes(retrieveFingerprintStmt, 0);
+
+                    if (fingerprintData && fingerprintSize > 0)
+                    {
+                        const unsigned char *fingerprintData = static_cast<const unsigned char *>(fingerprintData);
+                        unsigned char *fingerprint = new unsigned char[fingerprintSize];
+                        memcpy(fingerprint, fingerprintData, fingerprintSize);
+                        currentEventData.fingerprints[index] = fingerprint;
+                        currentEventData.fingerprintSizes[index] = fingerprintSize;
+                    }
+                    else
+                    {
+                        cerr << "No fingerprint found for the id supplied." << endl;
+                        sqlite3_finalize(retrieveFingerprintStmt);
+                    }
+                }
+            }
+
+            sqlite3_finalize(retrieveFingerprintStmt);
+            cout << "Retrieved fingerprint." << endl;
+        }
+    }
+}
+
 void startEvent()
 {
     registerEvent();
+    string getInviteesSQL = "SELECT email FROM " + currentEventData.name;
+    sqlite3_stmt *getInviteesStmt;
+
+    if (sqlite3_prepare_v2(db, getInviteesSQL.c_str(), -1, &getInviteesStmt, 0) == SQLITE_OK)
+    {
+        while (sqlite3_step(getInviteesStmt) == SQLITE_ROW)
+        {
+            const char *email = reinterpret_cast<const char *>(sqlite3_column_text(getInviteesStmt, 0));
+            currentEventData.emails.push_back(string(email));
+        }
+
+        retrieveFingerprints();
+        // DEBUG
+        for (size_t index = 0; index < currentEventData.emails.size(); index++)
+            cout << currentEventData.emails[index] << ": " << currentEventData.fingerprintSizes[index] << endl;
+        // DEBUG
+        currentEventData.isOngoing = true;
+    }
+    else
+    {
+        cout << "Could not prepare statement." << endl;
+        return;
+    }
+}
+
+void checkPersonInEvent()
+{
+    unsigned int numberOfFingerprints = sizeof(currentEventData.fingerprints);
+    if (numberOfFingerprints == 0)
+    {
+        cerr << "No person added to event." << endl;
+        return;
+    }
+
+    else
+    {
+
+        FMD verifyFMD = captureAndConvertFingerprint();
+
+        unsigned int thresholdScore = 5;
+        unsigned int candidateCount = 1;
+        DPFJ_CANDIDATE candidate;
+        rc = dpfj_identify(FMDFormat, verifyFMD.data, verifyFMD.size, 0, FMDFormat, numberOfFingerprints, currentEventData.fingerprints, currentEventData.fingerprintSizes, thresholdScore, &candidateCount, &candidate);
+
+        if (rc != DPFJ_SUCCESS)
+        {
+            cerr << "Could not identify fingerprint." << endl;
+            return;
+        }
+
+        cout << "Found " << candidateCount << " fingerprints matching finger." << endl;
+        if (candidateCount > 0)
+        {
+            cout << "Person: " << currentEventData.emails[candidate.fmd_idx] << endl;
+        }
+    }
 }
 
 void stopEvent()
@@ -742,6 +846,11 @@ int main()
                     currentEventData = EventData();
                     currentEventData.name = string(eventNameInput);
                     runFunctionInThread(startEvent);
+                }
+
+                if (currentEventData.isOngoing)
+                {
+                    // runFunctionInThread(checkPersonInEvent);
                 }
 
                 if (ImGui::Button("Stop"))
