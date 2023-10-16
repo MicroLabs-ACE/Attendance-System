@@ -586,7 +586,6 @@ int main()
             ImGui::Begin("Main Window");
             static ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg;
             ImGui::BeginChild("Enrol", ImVec2(500, 0), true);
-
             {
                 static char first_name_input[256] = "";
                 ImGui::InputText("First Name", first_name_input, IM_ARRAYSIZE(first_name_input));

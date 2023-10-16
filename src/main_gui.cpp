@@ -125,6 +125,8 @@ FMD captureAndConvertFingerprint()
     captureResult.size = sizeof(captureResult);
     captureResult.info.size = sizeof(captureResult.info);
 
+    cout << "Place your finger..." << endl;
+
     FID fid;
     rc = dpfpdd_capture(fingerprintDeviceHandle, &captureParam, (unsigned int)(-1), &captureResult, &fid.size, fid.data);
     if (rc != DPFPDD_SUCCESS)
@@ -141,23 +143,43 @@ FMD captureAndConvertFingerprint()
         return FMD();
     }
 
+    cout << "Captured and converted fingerprint." << endl;
+
     fmd.isEmpty = false;
     return fmd;
+}
+
+// Utility function
+string getCurrentTimestamp()
+{
+    // Get the current time
+    time_t currentTime = time(nullptr);
+    tm *timeInfo = localtime(&currentTime);
+
+    // Format the time as "dd/mm/yy hh:mm:ss"
+    char formattedTime[20]; // Sufficient size to hold the formatted time
+    strftime(formattedTime, sizeof(formattedTime), "%d/%m/%y %H:%M:%S", timeInfo);
+
+    // Return the formatted time as a string
+    return formattedTime;
+}
+
+bool validateInput(string input, string datatype)
+{
+    bool isValid;
+    if (datatype == "TEXT")
+        isValid = regex_match(input, regex(R"([a-zA-Z]{2,})"));
+
+    else if (datatype == "EMAIL")
+        isValid = regex_match(input, regex(R"([a-zA-Z0-9._%+-]+@oauife\.edu\.ng)"));
+
+    return isValid;
 }
 
 // Database
 sqlite3 *db;
 string dbINIFilename = "../config/database.ini";
 string dbSaveFilePath = "../data/database/";
-
-struct Person
-{
-    string email;
-    string firstName;
-    string otherName;
-    string lastName;
-    bool isValid;
-};
 
 pair<map<string, string>, map<string, string>> parseDBiniFile(const string &iniFilePath)
 {
@@ -241,17 +263,16 @@ void initialiseDatabase()
     cout << "Initialised database." << endl;
 }
 
-bool validateInput(string input, string datatype)
+struct Person
 {
+    string email;
+    string firstName;
+    string otherName;
+    string lastName;
     bool isValid;
-    if (datatype == "TEXT")
-        isValid = regex_match(input, regex(R"([a-zA-Z]{2,})"));
+};
 
-    else if (datatype == "EMAIL")
-        isValid = regex_match(input, regex(R"([a-zA-Z0-9._%+-]+@oauife\.edu\.ng)"));
-
-    return isValid;
-}
+Person currentPerson;
 
 Person validatePersonInput(Person person = Person())
 {
@@ -345,10 +366,17 @@ void insertPerson(Person personToInsert)
     cout << "Inserted person." << endl;
 }
 
-void insertFingerprint(string emailToInsert)
+void insertFingerprint()
 {
-    FMD fmd = captureAndConvertFingerprint();
+    string emailToInsert = currentPerson.email;
+    bool isValidEmail = validateInput(emailToInsert, "EMAIL");
+    if (!isValidEmail)
+    {
+        cerr << "Could not insert fingerprint as invalid email was supplied." << endl;
+        return;
+    }
 
+    FMD fmd = captureAndConvertFingerprint();
     if (!fmd.isEmpty)
     {
         const char *insertFingerprintSQL = "UPDATE Person SET fingerprint_data = ? WHERE email = ?";
@@ -360,7 +388,10 @@ void insertFingerprint(string emailToInsert)
             sqlite3_bind_text(insertFingerprintStmt, 2, emailToInsert.c_str(), -1, SQLITE_STATIC);
         }
         else
+        {
+            cerr << "Could not prepare fingerprint insertion statement." << endl;
             return;
+        }
 
         // Execute the statement
         rc = sqlite3_step(insertFingerprintStmt);
@@ -369,37 +400,96 @@ void insertFingerprint(string emailToInsert)
         if (rc != SQLITE_DONE)
         {
             sqlite3_finalize(insertFingerprintStmt);
+            cerr << "Could not insert fingerprint." << endl;
             return;
         }
 
         // Finalize the statement
         sqlite3_finalize(insertFingerprintStmt);
+        cout << "Inserted fingerprint" << endl;
     }
 
     else
         return;
 }
 
-void enrolPerson(Person personToEnrol)
+void enrolPerson()
 {
-    Person validatedPersonToEnrol = validatePersonInput(personToEnrol);
+    Person validatedPersonToEnrol = validatePersonInput(currentPerson);
     if (validatedPersonToEnrol.isValid)
     {
         insertPerson(validatedPersonToEnrol);
     }
 }
 
+struct Invitee
+{
+    string email;
+    FMD fmd;
+};
+
+struct EventData
+{
+    string name;
+    vector<Invitee> invitees;
+};
+
+EventData currentEventData;
+
+void insertEvent(EventData eventDataToInsert)
+{
+    const char *insertEventDataSQL = "INSERT INTO EventData (name) VALUES (?)";
+    sqlite3_stmt *insertEventDataStmt;
+
+    // Prepare the SQL statement
+    if (sqlite3_prepare_v2(db, insertEventDataSQL, -1, &insertEventDataStmt, 0) == SQLITE_OK)
+    {
+        // Bind parameters
+        sqlite3_bind_text(insertEventDataStmt, 1, eventDataToInsert.name.c_str(), -1, SQLITE_STATIC);
+        // Execute the statement
+        rc = sqlite3_step(insertEventDataStmt);
+
+        // Check for errors
+        if (rc != SQLITE_DONE)
+        {
+            sqlite3_finalize(insertEventDataStmt); // Don't forget to finalize the statement
+            return;
+        }
+
+        // Finalize the statement
+        sqlite3_finalize(insertEventDataStmt);
+    }
+
+    else
+    {
+        cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
+        return;
+    }
+
+    cout << "Inserted event." << endl;
+}
+
+void registerEvent()
+{
+    bool isValidEventName = validateInput(currentEventData.name, "TEXT");
+    if (isValidEventName)
+    {
+        insertEvent(currentEventData);
+    }
+}
+
+void startEvent()
+{
+}
+
+void stopEvent()
+{
+}
+
 void runFunctionInThread(function<void()> threadFunction)
 {
     thread threadObject([threadFunction]()
                         { threadFunction(); });
-    threadObject.detach();
-}
-
-void runFunctionInThread(function<void(Person)> threadFunction, Person person)
-{
-    thread threadObject([threadFunction, person]()
-                        { threadFunction(person); });
     threadObject.detach();
 }
 
@@ -581,7 +671,7 @@ int main()
         ImGui::NewFrame();
         {
             ImGui::Begin("Main Window");
-            ImGui::BeginChild("Enrol", ImVec2(1000, 0), true);
+            ImGui::BeginChild("Enrol", ImVec2(400, 400), true);
             {
                 static char firstNameInput[256] = "";
                 ImGui::InputText("First Name", firstNameInput, IM_ARRAYSIZE(firstNameInput));
@@ -597,16 +687,53 @@ int main()
 
                 if (ImGui::Button("Submit"))
                 {
-                    Person personToEnrol;
-                    personToEnrol.email = string(emailInput);
-                    personToEnrol.firstName = string(firstNameInput);
-                    personToEnrol.otherName = string(otherNameInput);
-                    personToEnrol.lastName = string(lastNameInput);
+                    currentPerson = Person();
+                    currentPerson.email = string(emailInput);
+                    currentPerson.firstName = string(firstNameInput);
+                    currentPerson.otherName = string(otherNameInput);
+                    currentPerson.lastName = string(lastNameInput);
 
-                    runFunctionInThread(enrolPerson, personToEnrol);
+                    runFunctionInThread(enrolPerson);
+                }
+
+                if (ImGui::Button("Enrol"))
+                {
+                    currentPerson = Person();
+                    currentPerson.email = string(emailInput);
+                    currentPerson.firstName = string(firstNameInput);
+                    currentPerson.otherName = string(otherNameInput);
+                    currentPerson.lastName = string(lastNameInput);
+
+                    runFunctionInThread(enrolPerson);
+                    runFunctionInThread(insertFingerprint);
                 }
             }
             ImGui::EndChild();
+
+            ImGui::SameLine;
+
+            ImGui::BeginChild("Event", ImVec2(0, 0), true);
+            {
+                static char eventNameInput[256] = "";
+                ImGui::InputText("Event Name", eventNameInput, IM_ARRAYSIZE(eventNameInput));
+
+                if (ImGui::Button("Register"))
+                {
+                    currentEventData = EventData();
+                    currentEventData.name = string(eventNameInput);
+                    runFunctionInThread(registerEvent);
+                }
+
+                if (ImGui::Button("Start"))
+                {
+                }
+
+                if (ImGui::Button("Stop"))
+                {
+                }
+            }
+            ImGui::EndChild();
+
             ImGui::End();
         }
 
