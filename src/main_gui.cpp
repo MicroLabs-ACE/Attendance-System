@@ -274,39 +274,8 @@ struct Person
 
 Person currentPerson;
 
-Person validatePersonInput(Person person = Person())
+Person validatePersonInput(Person person)
 {
-    // Collect inputs
-    // Email
-    cout << "Enter email address: ";
-    if (person.email.empty())
-        cin >> person.email;
-    else
-        cout << person.email << endl;
-
-    // First name
-    cout << "Enter first name: ";
-    if (person.firstName.empty())
-        cin >> person.firstName;
-    else
-        cout << person.firstName << endl;
-
-    // Other name
-    cout << "Enter other name: ";
-    if (person.otherName.empty())
-        cin >> person.otherName;
-    else
-        cout << person.otherName << endl;
-
-    // Last name
-    cout << "Enter last name: ";
-    if (person.lastName.empty())
-        cin >> person.lastName;
-    else
-        cout << person.lastName << endl;
-
-    cout << endl;
-
     // Checks
     bool isEmail = validateInput(person.email, "EMAIL");
     if (!isEmail)
@@ -432,6 +401,8 @@ struct EventData
 {
     string name;
     vector<Invitee> invitees;
+    bool shouldRegister;
+    bool isOngoing;
 };
 
 EventData currentEventData;
@@ -475,11 +446,51 @@ void registerEvent()
     if (isValidEventName)
     {
         insertEvent(currentEventData);
+
+        string createEventTableSQL = "CREATE TABLE IF NOT EXISTS " + currentEventData.name;
+        rc = sqlite3_exec(db, createEventTableSQL.c_str(), 0, 0, 0);
+        if (rc != SQLITE_OK)
+        {
+            cerr << "Could not create table: " << currentEventData.name << "." << endl;
+            return;
+        }
+
+        const char *getInviteesSQL = "SELECT email, fingerprint_data FROM Person";
+        sqlite3_stmt *getInviteesStmt;
+
+        if (sqlite3_prepare_v2(db, getInviteesSQL, -1, &getInviteesStmt, 0) == SQLITE_OK)
+        {
+            while (sqlite3_step(getInviteesStmt) == SQLITE_ROW)
+            {
+                const char *email = reinterpret_cast<const char *>(sqlite3_column_text(getInviteesStmt, 0));
+                const void *_fingerprintData = sqlite3_column_blob(getInviteesStmt, 1);
+                int fingerprintSize = sqlite3_column_bytes(getInviteesStmt, 40);
+                if (_fingerprintData && fingerprintSize > 0)
+                {
+                    FMD fmd;
+                    const unsigned char *fingerprintData = static_cast<const unsigned char *>(_fingerprintData);
+                    fmd.data = new unsigned char[fingerprintSize];
+                    memcpy(fmd.data, fingerprintData, fingerprintSize);
+                    fmd.size = fingerprintSize;
+
+                    Invitee invitee;
+                    invitee.email = string(email);
+                    invitee.fmd = fmd;
+                    currentEventData.invitees.push_back(invitee);
+                }
+                else
+                {
+                    cerr << "No fingerprint found for the email supplied." << endl;
+                    sqlite3_finalize(getInviteesStmt);
+                }
+            }
+        }
     }
 }
 
 void startEvent()
 {
+    registerEvent();
 }
 
 void stopEvent()
@@ -717,15 +728,11 @@ int main()
                 static char eventNameInput[256] = "";
                 ImGui::InputText("Event Name", eventNameInput, IM_ARRAYSIZE(eventNameInput));
 
-                if (ImGui::Button("Register"))
+                if (ImGui::Button("Start"))
                 {
                     currentEventData = EventData();
                     currentEventData.name = string(eventNameInput);
-                    runFunctionInThread(registerEvent);
-                }
-
-                if (ImGui::Button("Start"))
-                {
+                    runFunctionInThread(startEvent);
                 }
 
                 if (ImGui::Button("Stop"))
