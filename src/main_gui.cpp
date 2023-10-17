@@ -14,6 +14,7 @@
 #include <tuple>
 #include <vector>
 
+#include <conio.h>
 #include <d3d11.h>
 #include <sqlite3.h>
 #include <tchar.h>
@@ -34,8 +35,9 @@ enum STATE
     ENROL,
     VERIFY
 };
-
 STATE currentState = IDLE;
+
+size_t numberOfFingerprints;
 
 // Fingerprint
 DPFPDD_DEV fingerprintDeviceHandle;
@@ -298,7 +300,7 @@ void insertPerson(Person personToInsert)
 
     else
     {
-        cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
+        cerr << "insertPersonError: preparing SQL statement: " << sqlite3_errmsg(db) << endl;
         return;
     }
 
@@ -311,7 +313,7 @@ void insertFingerprint()
     bool isValidEmail = validateInput(emailToInsert, "EMAIL");
     if (!isValidEmail)
     {
-        cerr << "Could not insert fingerprint as invalid email was supplied." << endl;
+        cerr << "insertFingerprintError: Could not insert fingerprint as invalid email was supplied." << endl;
         return;
     }
 
@@ -327,7 +329,7 @@ void insertFingerprint()
         }
         else
         {
-            cerr << "Could not prepare fingerprint insertion statement." << endl;
+            cerr << "insertFingerprintError: Could not prepare fingerprint insertion statement." << endl;
             return;
         }
 
@@ -338,7 +340,7 @@ void insertFingerprint()
         if (rc != SQLITE_DONE)
         {
             sqlite3_finalize(insertFingerprintStmt);
-            cerr << "Could not insert fingerprint." << endl;
+            cerr << "insertFingerprintError: Could not insert fingerprint." << endl;
             return;
         }
 
@@ -395,7 +397,7 @@ void insertEvent(EventData eventDataToInsert)
 
     else
     {
-        cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
+        cerr << "insertEventError: Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
         return;
     }
 
@@ -413,7 +415,7 @@ void registerEvent()
         rc = sqlite3_exec(db, createEventTableSQL.c_str(), 0, 0, 0);
         if (rc != SQLITE_OK)
         {
-            cerr << "Could not create table: " << currentEventData.name << "." << endl;
+            cerr << "registerEventError: Could not create table: " << currentEventData.name << "." << endl;
             return;
         }
 
@@ -434,7 +436,7 @@ void registerEvent()
                 }
                 else
                 {
-                    cerr << "Could not prepare invitee insertion statement." << endl;
+                    cerr << "registerEventError: Could not prepare invitee insertion statement." << endl;
                     return;
                 }
 
@@ -445,7 +447,7 @@ void registerEvent()
                 if (rc != SQLITE_DONE)
                 {
                     sqlite3_finalize(insertInviteeStmt);
-                    cerr << "Could not insert invitee(s)." << endl;
+                    cerr << " registerEventError:Could not insert invitee(s)." << endl;
                     return;
                 }
 
@@ -459,14 +461,14 @@ void registerEvent()
 
 void retrieveFingerprints()
 {
-    size_t numberOfFingerprints = currentEventData.emails.size();
+    numberOfFingerprints = currentEventData.emails.size();
     // DEBUG
     cout << "Number of fingerprints: " << numberOfFingerprints << endl;
     // DEBUG
 
     if (numberOfFingerprints == 0)
     {
-        cerr << "No person added to event." << endl;
+        cerr << "retrieveFingerprintError: No person added to event." << endl;
         return;
     }
     else
@@ -494,9 +496,10 @@ void retrieveFingerprints()
                         currentEventData.fingerprints[index] = fingerprint;
                         currentEventData.fingerprintSizes[index] = fingerprintSize;
                     }
+
                     else
                     {
-                        cerr << "No fingerprint found for the id supplied." << endl;
+                        cerr << "retrieveFingerprintError: No fingerprint found for the id supplied." << endl;
                         sqlite3_finalize(retrieveFingerprintStmt);
                     }
                 }
@@ -510,7 +513,8 @@ void retrieveFingerprints()
 
 void startEvent()
 {
-
+    this_thread::sleep_for(chrono::seconds(5));
+    cout << "Current event name: " << currentEventData.name << endl;
     string getInviteesSQL = "SELECT email FROM " + currentEventData.name;
     sqlite3_stmt *getInviteesStmt;
 
@@ -531,30 +535,36 @@ void startEvent()
 
     else
     {
-        cout << "Could not prepare statement." << endl;
+        cout << "startEventError: Could not prepare statement." << endl;
         return;
     }
 }
 
 void checkPersonInEvent()
 {
-    unsigned int numberOfFingerprints = sizeof(currentEventData.fingerprints);
     if (numberOfFingerprints == 0)
     {
-        cerr << "No person added to event." << endl;
+        cerr << "checkPersonInEventError: No person added to event." << endl;
         return;
     }
+
+    // else
+    // {
+    //     cout << "Number of fingerprints: " << numberOfFingerprints << ";!()*&!*&@*" << endl;
+    // }
 
     else
     {
         unsigned int thresholdScore = 5;
         unsigned int candidateCount = 1;
         DPFJ_CANDIDATE candidate;
+        _getch();
         rc = dpfj_identify(FMDFormat, currentFMD.data, currentFMD.size, 0, FMDFormat, numberOfFingerprints, currentEventData.fingerprints, currentEventData.fingerprintSizes, thresholdScore, &candidateCount, &candidate);
 
         if (rc != DPFJ_SUCCESS)
         {
-            cerr << "Could not identify fingerprint." << endl;
+            cerr << "checkPersonInEventError: Could not identify fingerprint." << endl;
+            _getch();
             return;
         }
 
@@ -562,6 +572,7 @@ void checkPersonInEvent()
         if (candidateCount > 0)
         {
             cout << "Person: " << currentEventData.emails[candidate.fmd_idx] << endl;
+            _getch();
         }
     }
 }
@@ -577,6 +588,7 @@ void captureAndConvertFingerprint()
             // continue;
             cerr << "Fingerprint device is unavailable." << endl;
         }
+
         else
         {
             DPFPDD_CAPTURE_PARAM captureParam = {0};
