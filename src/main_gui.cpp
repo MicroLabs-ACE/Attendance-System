@@ -28,6 +28,14 @@ using namespace std;
 
 // Status messages
 int rc;
+enum STATE
+{
+    IDLE,
+    ENROL,
+    VERIFY
+};
+
+STATE currentState = IDLE;
 
 // Fingerprint
 DPFPDD_DEV fingerprintDeviceHandle;
@@ -48,6 +56,8 @@ struct FMD // Fingerprint Minutiae Data
     unsigned char *data = new unsigned char[size];
     bool isEmpty = true;
 };
+
+FMD currentFMD;
 
 void setFingerprintDevice()
 {
@@ -107,50 +117,6 @@ void setFingerprintDevice()
     fingerprintDeviceImageRes = fingerprintDeviceCapabilities.resolutions[0];
 
     cout << "Set fingerprint device." << endl;
-}
-
-FMD captureAndConvertFingerprint()
-{
-    DPFPDD_DEV_STATUS fingerprintDeviceStatus;
-    rc = dpfpdd_get_device_status(fingerprintDeviceHandle, &fingerprintDeviceStatus);
-    if (rc != DPFPDD_SUCCESS)
-    {
-        cerr << "Fingerprint device is unavailable." << endl;
-        return FMD();
-    }
-
-    DPFPDD_CAPTURE_PARAM captureParam = {0};
-    captureParam.size = sizeof(captureParam);
-    captureParam.image_fmt = FIDFormat;
-    captureParam.image_proc = FIDProcessing;
-    captureParam.image_res = fingerprintDeviceImageRes;
-
-    DPFPDD_CAPTURE_RESULT captureResult = {0};
-    captureResult.size = sizeof(captureResult);
-    captureResult.info.size = sizeof(captureResult.info);
-
-    cout << "Place your finger..." << endl;
-
-    FID fid;
-    rc = dpfpdd_capture(fingerprintDeviceHandle, &captureParam, (unsigned int)(-1), &captureResult, &fid.size, fid.data);
-    if (rc != DPFPDD_SUCCESS)
-    {
-        cerr << "Could not capture fingerprint." << endl;
-        return FMD();
-    }
-
-    FMD fmd;
-    rc = dpfj_create_fmd_from_fid(captureParam.image_fmt, fid.data, fid.size, FMDFormat, fmd.data, &fmd.size);
-    if (rc != DPFJ_SUCCESS)
-    {
-        cerr << "Could not convert fingerprint." << endl;
-        return FMD();
-    }
-
-    cout << "Captured and converted fingerprint." << endl;
-
-    fmd.isEmpty = false;
-    return fmd;
 }
 
 // Utility function
@@ -349,15 +315,14 @@ void insertFingerprint()
         return;
     }
 
-    FMD fmd = captureAndConvertFingerprint();
-    if (!fmd.isEmpty)
+    if (!currentFMD.isEmpty)
     {
         const char *insertFingerprintSQL = "UPDATE Person SET fingerprint_data = ? WHERE email = ?";
         sqlite3_stmt *insertFingerprintStmt;
 
         if (sqlite3_prepare_v2(db, insertFingerprintSQL, -1, &insertFingerprintStmt, 0) == SQLITE_OK)
         {
-            sqlite3_bind_blob(insertFingerprintStmt, 1, fmd.data, fmd.size, SQLITE_STATIC);
+            sqlite3_bind_blob(insertFingerprintStmt, 1, currentFMD.data, currentFMD.size, SQLITE_STATIC);
             sqlite3_bind_text(insertFingerprintStmt, 2, emailToInsert.c_str(), -1, SQLITE_STATIC);
         }
         else
@@ -382,8 +347,7 @@ void insertFingerprint()
         cout << "Inserted fingerprint" << endl;
     }
 
-    else
-        return;
+    currentState = IDLE;
 }
 
 void enrolPerson()
@@ -401,7 +365,6 @@ struct EventData
     vector<string> emails;
     unsigned int *fingerprintSizes;
     unsigned char **fingerprints;
-    bool isOngoing;
 };
 
 EventData currentEventData;
@@ -547,7 +510,7 @@ void retrieveFingerprints()
 
 void startEvent()
 {
-    registerEvent();
+
     string getInviteesSQL = "SELECT email FROM " + currentEventData.name;
     sqlite3_stmt *getInviteesStmt;
 
@@ -564,8 +527,8 @@ void startEvent()
         for (size_t index = 0; index < currentEventData.emails.size(); index++)
             cout << currentEventData.emails[index] << ": " << currentEventData.fingerprintSizes[index] << endl;
         // DEBUG
-        currentEventData.isOngoing = true;
     }
+
     else
     {
         cout << "Could not prepare statement." << endl;
@@ -584,13 +547,10 @@ void checkPersonInEvent()
 
     else
     {
-
-        FMD verifyFMD = captureAndConvertFingerprint();
-
         unsigned int thresholdScore = 5;
         unsigned int candidateCount = 1;
         DPFJ_CANDIDATE candidate;
-        rc = dpfj_identify(FMDFormat, verifyFMD.data, verifyFMD.size, 0, FMDFormat, numberOfFingerprints, currentEventData.fingerprints, currentEventData.fingerprintSizes, thresholdScore, &candidateCount, &candidate);
+        rc = dpfj_identify(FMDFormat, currentFMD.data, currentFMD.size, 0, FMDFormat, numberOfFingerprints, currentEventData.fingerprints, currentEventData.fingerprintSizes, thresholdScore, &candidateCount, &candidate);
 
         if (rc != DPFJ_SUCCESS)
         {
@@ -598,7 +558,7 @@ void checkPersonInEvent()
             return;
         }
 
-        cout << "Found " << candidateCount << " fingerprints matching finger." << endl;
+        cout << "Found " << candidateCount << " fingerprint(s) matching finger." << endl;
         if (candidateCount > 0)
         {
             cout << "Person: " << currentEventData.emails[candidate.fmd_idx] << endl;
@@ -606,8 +566,71 @@ void checkPersonInEvent()
     }
 }
 
-void stopEvent()
+void captureAndConvertFingerprint()
 {
+    while (true)
+    {
+        DPFPDD_DEV_STATUS fingerprintDeviceStatus;
+        rc = dpfpdd_get_device_status(fingerprintDeviceHandle, &fingerprintDeviceStatus);
+        if (rc != DPFPDD_SUCCESS)
+        {
+            // continue;
+            cerr << "Fingerprint device is unavailable." << endl;
+        }
+        else
+        {
+            DPFPDD_CAPTURE_PARAM captureParam = {0};
+            captureParam.size = sizeof(captureParam);
+            captureParam.image_fmt = FIDFormat;
+            captureParam.image_proc = FIDProcessing;
+            captureParam.image_res = fingerprintDeviceImageRes;
+
+            DPFPDD_CAPTURE_RESULT captureResult = {0};
+            captureResult.size = sizeof(captureResult);
+            captureResult.info.size = sizeof(captureResult.info);
+
+            cout << "Place your finger..." << endl;
+
+            FID fid;
+            rc = dpfpdd_capture(fingerprintDeviceHandle, &captureParam, (unsigned int)(-1), &captureResult, &fid.size, fid.data);
+            if (rc != DPFPDD_SUCCESS)
+            {
+                cerr << "Could not capture fingerprint." << endl;
+            }
+
+            currentFMD = FMD();
+            rc = dpfj_create_fmd_from_fid(captureParam.image_fmt, fid.data, fid.size, FMDFormat, currentFMD.data, &currentFMD.size);
+            if (rc != DPFJ_SUCCESS)
+            {
+                cerr << "Could not convert fingerprint." << endl;
+            }
+
+            cout << "Captured and converted fingerprint." << endl;
+            currentFMD.isEmpty = false;
+
+            string emailToInsert;
+            bool isValidEmail;
+            unsigned int numberOfFingerprints;
+            unsigned int thresholdScore = 5;
+            unsigned int candidateCount = 1;
+            DPFJ_CANDIDATE candidate;
+
+            if (currentState == ENROL)
+            {
+                insertFingerprint();
+            }
+
+            else if (currentState == VERIFY)
+            {
+                checkPersonInEvent();
+            }
+
+            else if (currentState == IDLE)
+            {
+                cout << "Idle" << endl;
+            }
+        }
+    }
 }
 
 void runFunctionInThread(function<void()> threadFunction)
@@ -726,13 +749,24 @@ LRESULT WINAPI WndProc(HWND windowHandle, UINT msg, WPARAM wParam, LPARAM lParam
     return ::DefWindowProcW(windowHandle, msg, wParam, lParam);
 }
 
+void whileTrue()
+{
+    int n = 0;
+    while (true)
+    {
+        cout << n << endl;
+        n++;
+    }
+}
+
 int main()
 {
     runFunctionInThread(initialiseDatabase);
     runFunctionInThread(setFingerprintDevice);
+    runFunctionInThread(captureAndConvertFingerprint);
 
     // Create application window
-    WNDCLASSEXW wc = {sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"ImGui Example", nullptr};
+    WNDCLASSEXW wc = {sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Biometric Attendance System", nullptr};
     ::RegisterClassExW(&wc);
     HWND windowHandle = ::CreateWindowW(wc.lpszClassName, L"Biometric Attendance System", WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, nullptr, nullptr, wc.hInstance, nullptr);
 
@@ -829,7 +863,7 @@ int main()
                     currentPerson.lastName = string(lastNameInput);
 
                     runFunctionInThread(enrolPerson);
-                    runFunctionInThread(insertFingerprint);
+                    currentState = ENROL;
                 }
             }
             ImGui::EndChild();
@@ -845,16 +879,14 @@ int main()
                 {
                     currentEventData = EventData();
                     currentEventData.name = string(eventNameInput);
+                    runFunctionInThread(registerEvent);
                     runFunctionInThread(startEvent);
-                }
-
-                if (currentEventData.isOngoing)
-                {
-                    // runFunctionInThread(checkPersonInEvent);
+                    currentState = VERIFY;
                 }
 
                 if (ImGui::Button("Stop"))
                 {
+                    currentState = IDLE;
                 }
             }
             ImGui::EndChild();
