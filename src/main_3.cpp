@@ -1,4 +1,12 @@
-// Iteration 0
+// Iteration 3
+
+/**TODO
+ * Modify regex to take other name as empty or abbreviation
+ */
+
+/**DILEMMA
+ * Should currentPerson be used in enrolPerson and retrievePerson
+ */
 
 #include <chrono>
 #include <fstream>
@@ -29,9 +37,10 @@ int rc; // Return code (used to store the return code of functions)
 
 enum STATE
 {
-    IDLE,  // Initial state
-    ENROL, // State for enrolling fingerprints
-    VERIFY // State for verifying fingerprints
+    IDLE,   // Initial state
+    SUBMIT, // State for submission of a person details
+    ENROL,  // State for enrolling fingerprints
+    VERIFY  // State for verifying fingerprints
 };
 
 STATE currentState = IDLE; // Set the initial state to IDLE
@@ -228,75 +237,6 @@ void initialiseFingerprintDevice()
     statusMessage = "Initialized fingerprint device.";
 }
 
-/**
- * @brief Captures and converts fingerprints from the fingerprint device.
- *
- * This function continuously captures and converts fingerprints from the connected fingerprint device.
- * It checks the device's status, captures fingerprints, converts them to minutiae data, and updates the status message accordingly.
- */
-void captureAndConvertFingerprint()
-{
-    while (true)
-    {
-        // Check if fingerprint device is connected
-        DPFPDD_DEV_STATUS fingerprintDeviceStatus;
-        rc = dpfpdd_get_device_status(fingerprintDeviceHandle, &fingerprintDeviceStatus);
-        if (rc != DPFPDD_SUCCESS)
-        {
-            statusMessage = "FingerprintDeviceUnavailable";
-        }
-
-        else
-        {
-            // Set parameters for fingerprint capture
-            DPFPDD_CAPTURE_PARAM captureParam = {0};
-            captureParam.size = sizeof(captureParam);
-            captureParam.image_fmt = FIDFormat;
-            captureParam.image_proc = FIDProcessing;
-            captureParam.image_res = fingerprintDeviceImageRes;
-
-            DPFPDD_CAPTURE_RESULT captureResult = {0};
-            captureResult.size = sizeof(captureResult);
-            captureResult.info.size = sizeof(captureResult.info);
-
-            statusMessage = "Place your finger...";
-
-            FID fid;
-            rc = dpfpdd_capture(fingerprintDeviceHandle, &captureParam, (unsigned int)(-1), &captureResult, &fid.size, fid.data);
-            if (rc != DPFPDD_SUCCESS)
-            {
-                statusMessage = "FingerprintCaptureError";
-            }
-
-            else
-            {
-                // Convert FID to FMD
-                currentFMD = FMD();
-                rc = dpfj_create_fmd_from_fid(captureParam.image_fmt, fid.data, fid.size, FMDFormat, currentFMD.data, &currentFMD.size);
-                if (rc != DPFJ_SUCCESS)
-                {
-                    statusMessage = "FingerprintConversionError.";
-                }
-
-                else
-                {
-                    statusMessage = "Captured and converted fingerprint.";
-                    currentFMD.isEmpty = false;
-
-                    if (currentState == ENROL)
-                    {
-                        statusMessage = "Enrolled fingerprint.";
-                    }
-
-                    else if (currentState == VERIFY)
-                    {
-                        statusMessage = "Verified fingerprint.";
-                    }
-                }
-            }
-        }
-    }
-}
 
 // SECTION: Database initialisation and management
 /**
@@ -457,6 +397,29 @@ Person validatePersonInput(Person person)
     return person;
 }
 
+void retrievePerson()
+{
+    string retrievePersonSQL = "SELECT first_name, other_name, last_name FROM Person WHERE email = ?";
+    sqlite3_stmt *retrievePersonStmt;
+
+    if (sqlite3_prepare_v2(db, retrievePersonSQL.c_str(), -1, &retrievePersonStmt, 0) == SQLITE_OK)
+    {
+        sqlite3_bind_text(retrievePersonStmt, 1, currentPerson.email.c_str(), -1, SQLITE_STATIC);
+        while (sqlite3_step(retrievePersonStmt) == SQLITE_ROW)
+        {
+            const char *firstName = reinterpret_cast<const char *>(sqlite3_column_text(retrievePersonStmt, 0));
+            const char *otherName = reinterpret_cast<const char *>(sqlite3_column_text(retrievePersonStmt, 1));
+            const char *lastName = reinterpret_cast<const char *>(sqlite3_column_text(retrievePersonStmt, 2));
+
+            currentPerson.firstName = string(firstName);
+            currentPerson.otherName = string(otherName);
+            currentPerson.lastName = string(lastName);
+
+            currentPerson = validatePersonInput(currentPerson);
+        }
+    }
+}
+
 /**
  * @brief Insert a Person into the SQLite database.
  *
@@ -466,49 +429,59 @@ Person validatePersonInput(Person person)
  */
 void enrolPerson()
 {
-    Person personToInsert = validatePersonInput(currentPerson);
-    if (personToInsert.isValid)
+    retrievePerson();
+    if (currentPerson.isValid)
     {
-        const char *insertPersonSQL = "INSERT INTO Person (email, first_name, other_name, last_name) VALUES (?, ?, ?, ?)";
-        sqlite3_stmt *insertPersonStmt;
-
-        // Prepare the SQL statement
-        if (sqlite3_prepare_v2(db, insertPersonSQL, -1, &insertPersonStmt, 0) == SQLITE_OK)
-        {
-            // Bind parameters
-            sqlite3_bind_text(insertPersonStmt, 1, personToInsert.email.c_str(), -1, SQLITE_STATIC);
-            sqlite3_bind_text(insertPersonStmt, 2, personToInsert.firstName.c_str(), -1, SQLITE_STATIC);
-            sqlite3_bind_text(insertPersonStmt, 3, personToInsert.otherName.c_str(), -1, SQLITE_STATIC);
-            sqlite3_bind_text(insertPersonStmt, 4, personToInsert.lastName.c_str(), -1, SQLITE_STATIC);
-
-            // Execute the statement
-            rc = sqlite3_step(insertPersonStmt);
-
-            // Check for errors
-            if (rc != SQLITE_DONE)
-            {
-                statusMessage = "InsertPerson: SQLiteError";
-                sqlite3_finalize(insertPersonStmt);
-                return;
-            }
-
-            // Finalize the statement
-            sqlite3_finalize(insertPersonStmt);
-        }
-
-        else
-        {
-            statusMessage = "EnrolPerson: SQLiteError(" + string(sqlite3_errmsg(db)) + ")";
-            return;
-        }
-
-        statusMessage = "Enrolled person.";
+        statusMessage = "PersonAlreadyExists";
+        return;
     }
 
     else
     {
-        statusMessage = "EnrolPersonError";
-        return;
+        Person personToInsert = validatePersonInput(currentPerson);
+        if (personToInsert.isValid)
+        {
+            const char *enrolPersonSQL = "INSERT INTO Person (email, first_name, other_name, last_name) VALUES (?, ?, ?, ?)";
+            sqlite3_stmt *enrolPersonStmt;
+
+            // Prepare the SQL statement
+            if (sqlite3_prepare_v2(db, enrolPersonSQL, -1, &enrolPersonStmt, 0) == SQLITE_OK)
+            {
+                // Bind parameters
+                sqlite3_bind_text(enrolPersonStmt, 1, personToInsert.email.c_str(), -1, SQLITE_STATIC);
+                sqlite3_bind_text(enrolPersonStmt, 2, personToInsert.firstName.c_str(), -1, SQLITE_STATIC);
+                sqlite3_bind_text(enrolPersonStmt, 3, personToInsert.otherName.c_str(), -1, SQLITE_STATIC);
+                sqlite3_bind_text(enrolPersonStmt, 4, personToInsert.lastName.c_str(), -1, SQLITE_STATIC);
+
+                // Execute the statement
+                rc = sqlite3_step(enrolPersonStmt);
+
+                // Check for errors
+                if (rc != SQLITE_DONE)
+                {
+                    statusMessage = "EnrolPerson: SQLiteError(SQLiteParseError)";
+                    sqlite3_finalize(enrolPersonStmt);
+                    return;
+                }
+
+                // Finalize the statement
+                sqlite3_finalize(enrolPersonStmt);
+            }
+
+            else
+            {
+                statusMessage = "EnrolPerson: SQLiteError(" + string(sqlite3_errmsg(db)) + ")";
+                return;
+            }
+
+            statusMessage = "Enrolled person.";
+        }
+
+        else
+        {
+            statusMessage = "EnrolPersonError";
+            return;
+        }
     }
 }
 
@@ -557,6 +530,79 @@ void enrolFingerprint()
 
     currentState = IDLE;
 }
+
+
+/**
+ * @brief Captures and converts fingerprints from the fingerprint device.
+ *
+ * This function continuously captures and converts fingerprints from the connected fingerprint device.
+ * It checks the device's status, captures fingerprints, converts them to minutiae data, and updates the status message accordingly.
+ */
+void captureAndConvertFingerprint()
+{
+    while (true)
+    {
+        // Check if fingerprint device is connected
+        DPFPDD_DEV_STATUS fingerprintDeviceStatus;
+        rc = dpfpdd_get_device_status(fingerprintDeviceHandle, &fingerprintDeviceStatus);
+        if (rc != DPFPDD_SUCCESS)
+        {
+            statusMessage = "FingerprintDeviceUnavailable";
+        }
+
+        else
+        {
+            // Set parameters for fingerprint capture
+            DPFPDD_CAPTURE_PARAM captureParam = {0};
+            captureParam.size = sizeof(captureParam);
+            captureParam.image_fmt = FIDFormat;
+            captureParam.image_proc = FIDProcessing;
+            captureParam.image_res = fingerprintDeviceImageRes;
+
+            DPFPDD_CAPTURE_RESULT captureResult = {0};
+            captureResult.size = sizeof(captureResult);
+            captureResult.info.size = sizeof(captureResult.info);
+
+            statusMessage = "Place your finger...";
+
+            FID fid;
+            rc = dpfpdd_capture(fingerprintDeviceHandle, &captureParam, (unsigned int)(-1), &captureResult, &fid.size, fid.data);
+            if (rc != DPFPDD_SUCCESS)
+            {
+                statusMessage = "FingerprintCaptureError";
+            }
+
+            else
+            {
+                // Convert FID to FMD
+                currentFMD = FMD();
+                rc = dpfj_create_fmd_from_fid(captureParam.image_fmt, fid.data, fid.size, FMDFormat, currentFMD.data, &currentFMD.size);
+                if (rc != DPFJ_SUCCESS)
+                {
+                    statusMessage = "FingerprintConversionError.";
+                }
+
+                else
+                {
+                    statusMessage = "Captured and converted fingerprint.";
+                    currentFMD.isEmpty = false;
+
+                    if (currentState == ENROL)
+                    {
+                        enrolFingerprint();
+                    }
+
+                    else if (currentState == VERIFY)
+                    {
+                        statusMessage = "Verified fingerprint.";
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 
 // SECTION: Event
 
