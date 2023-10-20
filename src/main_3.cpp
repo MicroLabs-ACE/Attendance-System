@@ -1,11 +1,15 @@
 // Iteration 3
 
-/**TODO
- * Modify regex to take other name as empty or abbreviation
+/*TODO
+ * Verify fingerprint
+ Modify regex to take other name as empty or abbreviation
+ */
+
+/*ASSUME
+ * All records have fingerprint data
  */
 
 /**DILEMMA
- * Should currentPerson be used in enrolPerson and retrievePerson
  */
 
 #include <chrono>
@@ -47,7 +51,8 @@ STATE currentState = IDLE; // Set the initial state to IDLE
 
 size_t numberOfFingerprints; // Store the number of fingerprints
 
-string statusMessage; // Store status messages
+string enrolStatusMessage; // Store status messages
+string eventStatusMessage; // Store status messages
 
 // Utilities functions
 /**
@@ -174,7 +179,7 @@ void initialiseFingerprintDevice()
     // Check for initialization errors
     if (rc != DPFPDD_SUCCESS)
     {
-        statusMessage = "InitialiseDPFPDDError";
+        enrolStatusMessage = "InitialiseDPFPDDError";
         return;
     }
 
@@ -186,7 +191,7 @@ void initialiseFingerprintDevice()
     // Check for query errors
     if (rc != DPFPDD_SUCCESS)
     {
-        statusMessage = "QueryFingerprintDevicesError";
+        enrolStatusMessage = "QueryFingerprintDevicesError";
         return;
     }
 
@@ -206,7 +211,7 @@ void initialiseFingerprintDevice()
     // Check if a valid fingerprint device was found
     if (fingerprintDeviceIndex == 99)
     {
-        statusMessage = "FingerprintDeviceIndexError";
+        enrolStatusMessage = "FingerprintDeviceIndexError";
         return;
     }
 
@@ -217,7 +222,7 @@ void initialiseFingerprintDevice()
     // Check for errors while opening device
     if (rc != DPFPDD_SUCCESS)
     {
-        statusMessage = "OpenDPFPDDError";
+        enrolStatusMessage = "OpenDPFPDDError";
         return;
     }
 
@@ -229,14 +234,13 @@ void initialiseFingerprintDevice()
     // Check for device capabilities retrieval errors
     if (rc != DPFPDD_SUCCESS)
     {
-        statusMessage = "FingerprintDeviceCapabilitiesError";
+        enrolStatusMessage = "FingerprintDeviceCapabilitiesError";
         return;
     }
     fingerprintDeviceImageRes = fingerprintDeviceCapabilities.resolutions[0];
 
-    statusMessage = "Initialized fingerprint device.";
+    enrolStatusMessage = "Initialized fingerprint device.";
 }
-
 
 // SECTION: Database initialisation and management
 /**
@@ -320,7 +324,7 @@ void initialiseDatabase()
 
     if (database.empty() || tables.empty())
     {
-        statusMessage = "DatabaseInitialisationError";
+        enrolStatusMessage = "DatabaseInitialisationError";
         return;
     }
 
@@ -333,7 +337,7 @@ void initialiseDatabase()
         rc = sqlite3_open((dbSaveFilePath + dbName).c_str(), &db);
         if (rc != SQLITE_OK)
         {
-            statusMessage = "DatabaseCreationError";
+            enrolStatusMessage = "DatabaseCreationError";
             return;
         }
     }
@@ -345,12 +349,12 @@ void initialiseDatabase()
         rc = sqlite3_exec(db, createTableSQL.c_str(), 0, 0, 0);
         if (rc != SQLITE_OK)
         {
-            statusMessage = "TableCreationError: " + pair.first;
+            enrolStatusMessage = "TableCreationError: " + pair.first;
             return;
         }
     }
 
-    statusMessage = "Initialised database.";
+    enrolStatusMessage = "Initialised database.";
 }
 
 // SECTION: Person
@@ -432,7 +436,7 @@ void enrolPerson()
     retrievePerson();
     if (currentPerson.isValid)
     {
-        statusMessage = "PersonAlreadyExists";
+        enrolStatusMessage = "PersonAlreadyExists";
         return;
     }
 
@@ -459,7 +463,7 @@ void enrolPerson()
                 // Check for errors
                 if (rc != SQLITE_DONE)
                 {
-                    statusMessage = "EnrolPerson: SQLiteError(SQLiteParseError)";
+                    enrolStatusMessage = "EnrolPerson: SQLiteError(SQLiteParseError)";
                     sqlite3_finalize(enrolPersonStmt);
                     return;
                 }
@@ -470,16 +474,16 @@ void enrolPerson()
 
             else
             {
-                statusMessage = "EnrolPerson: SQLiteError(" + string(sqlite3_errmsg(db)) + ")";
+                enrolStatusMessage = "EnrolPerson: SQLiteError(" + string(sqlite3_errmsg(db)) + ")";
                 return;
             }
 
-            statusMessage = "Enrolled person.";
+            enrolStatusMessage = "Enrolled person.";
         }
 
         else
         {
-            statusMessage = "EnrolPersonError";
+            enrolStatusMessage = "EnrolPersonError";
             return;
         }
     }
@@ -491,7 +495,7 @@ void enrolFingerprint()
     bool isValidEmail = validateInput(emailToInsert, "EMAIL");
     if (!isValidEmail)
     {
-        statusMessage = "EnrolFingerprint: InvalidIDError";
+        enrolStatusMessage = "EnrolFingerprint: InvalidIDError";
         return;
     }
 
@@ -508,7 +512,7 @@ void enrolFingerprint()
 
         else
         {
-            statusMessage = "EnrolFingerprint: SQLiteError(StatementPreparationError)";
+            enrolStatusMessage = "EnrolFingerprint: SQLiteError(StatementPreparationError)";
             return;
         }
 
@@ -519,18 +523,287 @@ void enrolFingerprint()
         if (rc != SQLITE_DONE)
         {
             sqlite3_finalize(insertFingerprintStmt);
-            statusMessage = "EnrolFingerprint: SQLiteError(StatementFinalisationError)";
+            enrolStatusMessage = "EnrolFingerprint: SQLiteError(StatementFinalisationError)";
 
             return;
         }
 
         sqlite3_finalize(insertFingerprintStmt);
-        statusMessage = "Enrolled fingerprint.";
+        enrolStatusMessage = "Enrolled fingerprint.";
     }
 
     currentState = IDLE;
 }
 
+// SECTION: Event
+struct EventData
+{
+    string name;
+    vector<string> emails;
+    unsigned int *fingerprintSizes;
+    unsigned char **fingerprints;
+};
+EventData currentEventData;
+
+void insertEvent(EventData eventDataToInsert)
+{
+    const char *insertEventDataSQL = "INSERT INTO EventData (name) VALUES (?)";
+    sqlite3_stmt *insertEventDataStmt;
+
+    // Prepare the SQL statement
+    if (sqlite3_prepare_v2(db, insertEventDataSQL, -1, &insertEventDataStmt, 0) == SQLITE_OK)
+    {
+        // Bind parameters
+        sqlite3_bind_text(insertEventDataStmt, 1, eventDataToInsert.name.c_str(), -1, SQLITE_STATIC);
+        // Execute the statement
+        rc = sqlite3_step(insertEventDataStmt);
+
+        // Check for errors
+        if (rc != SQLITE_DONE)
+        {
+            sqlite3_finalize(insertEventDataStmt);
+            return;
+        }
+
+        // Finalize the statement
+        sqlite3_finalize(insertEventDataStmt);
+    }
+
+    else
+    {
+        eventStatusMessage = "InsertEvent: PrepStatementError";
+        return;
+    }
+
+    eventStatusMessage = "Inserted event.";
+}
+
+void registerEvent()
+{
+    bool isValidEventName = validateInput(currentEventData.name, "TEXT");
+    if (isValidEventName)
+    {
+        insertEvent(currentEventData);
+
+        string createEventTableSQL = "CREATE TABLE IF NOT EXISTS " + currentEventData.name + " (email TEXT, sign_in TEXT, sign_out TEXT)";
+        rc = sqlite3_exec(db, createEventTableSQL.c_str(), 0, 0, 0);
+        if (rc != SQLITE_OK)
+        {
+            eventStatusMessage = "RegisterEvent: TableCreationError";
+            return;
+        }
+
+        const char *getInviteesSQL = "SELECT email FROM Person";
+        sqlite3_stmt *getInviteesStmt;
+
+        if (sqlite3_prepare_v2(db, getInviteesSQL, -1, &getInviteesStmt, 0) == SQLITE_OK)
+        {
+            while (sqlite3_step(getInviteesStmt) == SQLITE_ROW)
+            {
+                const char *email = reinterpret_cast<const char *>(sqlite3_column_text(getInviteesStmt, 0));
+                string insertInviteeSQL = "INSERT INTO " + currentEventData.name + " (email) VALUES (?)";
+                sqlite3_stmt *insertInviteeStmt;
+                if (sqlite3_prepare_v2(db, insertInviteeSQL.c_str(), -1, &insertInviteeStmt, 0) == SQLITE_OK)
+                {
+                    // Bind parameters
+                    sqlite3_bind_text(insertInviteeStmt, 1, email, -1, SQLITE_STATIC);
+                }
+
+                else
+                {
+                    eventStatusMessage = "RegisterEvent: InviteeStatementPrepError";
+                    return;
+                }
+
+                // Execute the statement
+                rc = sqlite3_step(insertInviteeStmt);
+
+                // Check for errors
+                if (rc != SQLITE_DONE)
+                {
+                    sqlite3_finalize(insertInviteeStmt);
+                    eventStatusMessage = "RegisterEvent: InviteeInsertionError";
+                    return;
+                }
+
+                // Finalize the statement
+                sqlite3_finalize(insertInviteeStmt);
+                eventStatusMessage = "Inserted invitee.";
+            }
+        }
+    }
+}
+
+FMD retrieveFingerprint(string id)
+{
+    FMD fmd;
+
+    const char *retrieveFingerprintSQL = "SELECT fingerprint_data FROM Person WHERE email = ?";
+    sqlite3_stmt *retrieveFingerprintStmt;
+    if (sqlite3_prepare_v2(db, retrieveFingerprintSQL, -1, &retrieveFingerprintStmt, 0) == SQLITE_OK)
+    {
+        sqlite3_bind_text(retrieveFingerprintStmt, 1, id.c_str(), -1, SQLITE_STATIC);
+
+        while (sqlite3_step(retrieveFingerprintStmt) == SQLITE_ROW)
+        {
+            const void *data = sqlite3_column_blob(retrieveFingerprintStmt, 0);
+            int size = sqlite3_column_bytes(retrieveFingerprintStmt, 0);
+
+            if (data && size > 0)
+            {
+                const unsigned char *fingerprintData = static_cast<const unsigned char *>(data);
+                unsigned char *fingerprint = new unsigned char[size];
+                memcpy(fingerprint, fingerprintData, size);
+                fmd.data = fingerprint;
+                fmd.size = size;
+            }
+            else
+            {
+                cerr << "No fingerprint found for the id supplied." << endl;
+                sqlite3_finalize(retrieveFingerprintStmt);
+                return fmd;
+            }
+        }
+    }
+
+    sqlite3_finalize(retrieveFingerprintStmt);
+
+    cout << "Retrieved fingerprint." << endl;
+
+    fmd.isEmpty = false;
+    return fmd;
+}
+
+// void retrieveFingerprints()
+// {
+//     numberOfFingerprints = currentEventData.emails.size();
+//     if (numberOfFingerprints == 0)
+//     {
+//         eventStatusMessage = "RetrieveFingerprint: NoFingerprints";
+//         return;
+//     }
+
+//     else
+//     {
+//         currentEventData.fingerprints = new unsigned char *[numberOfFingerprints];
+//         currentEventData.fingerprintSizes = new unsigned int[numberOfFingerprints];
+
+//         for (size_t index = 0; index < numberOfFingerprints; index++)
+//         {
+//             const char *retrieveFingerprintSQL = "SELECT fingerprint_data FROM Person WHERE email = ?";
+//             sqlite3_stmt *retrieveFingerprintStmt;
+//             if (sqlite3_prepare_v2(db, retrieveFingerprintSQL, -1, &retrieveFingerprintStmt, 0) == SQLITE_OK)
+//             {
+//                 sqlite3_bind_text(retrieveFingerprintStmt, 1, currentEventData.emails[index].c_str(), -1, SQLITE_STATIC);
+//                 while (sqlite3_step(retrieveFingerprintStmt) == SQLITE_ROW)
+//                 {
+//                     const void *fingerprintData = sqlite3_column_blob(retrieveFingerprintStmt, 0);
+//                     int fingerprintSize = sqlite3_column_bytes(retrieveFingerprintStmt, 0);
+
+//                     if (fingerprintData && fingerprintSize > 0)
+//                     {
+//                         const unsigned char *fingerprintData = static_cast<const unsigned char *>(fingerprintData);
+//                         unsigned char *fingerprint = new unsigned char[fingerprintSize];
+//                         memcpy(fingerprint, fingerprintData, fingerprintSize);
+//                         currentEventData.fingerprints[index] = fingerprint;
+//                         currentEventData.fingerprintSizes[index] = fingerprintSize;
+//                     }
+
+//                     else
+//                     {
+//                         eventStatusMessage = "RetrieveFingerprint: FingerprintNotFound";
+//                         sqlite3_finalize(retrieveFingerprintStmt);
+//                     }
+//                 }
+//             }
+
+//             sqlite3_finalize(retrieveFingerprintStmt);
+//             eventStatusMessage = "Retrieved fingerprints.";
+//         }
+//     }
+// }
+
+void retrieveFingerprints()
+{
+    numberOfFingerprints = currentEventData.emails.size();
+    if (numberOfFingerprints == 0)
+    {
+        eventStatusMessage = "RetrieveFingerprint: NoFingerprints";
+        return;
+    }
+
+    else
+    {
+        currentEventData.fingerprints = new unsigned char *[numberOfFingerprints];
+        currentEventData.fingerprintSizes = new unsigned int[numberOfFingerprints];
+
+        int index = 0;
+        for (const string &id : currentEventData.emails)
+        {
+            FMD fmd = retrieveFingerprint(id);
+            currentEventData.fingerprints[index] = fmd.data;
+            currentEventData.fingerprintSizes[index] = fmd.size;
+
+            index++;
+        }
+    }
+}
+
+void startEvent()
+{
+    // this_thread::sleep_for(chrono::seconds(5));
+    string getInviteesSQL = "SELECT email FROM " + currentEventData.name;
+    sqlite3_stmt *getInviteesStmt;
+
+    if (sqlite3_prepare_v2(db, getInviteesSQL.c_str(), -1, &getInviteesStmt, 0) == SQLITE_OK)
+    {
+        while (sqlite3_step(getInviteesStmt) == SQLITE_ROW)
+        {
+            const char *email = reinterpret_cast<const char *>(sqlite3_column_text(getInviteesStmt, 0));
+            currentEventData.emails.push_back(string(email));
+        }
+
+        retrieveFingerprints();
+    }
+
+    else
+    {
+        eventStatusMessage = "StartEvent: PrepStatementError";
+        return;
+    }
+
+    eventStatusMessage = "Started event.";
+}
+
+void checkPersonInEvent()
+{
+    if (numberOfFingerprints == 0)
+    {
+        eventStatusMessage = "CheckPersonInEvent: EventEmpty";
+        return;
+    }
+
+    else
+    {
+        unsigned int thresholdScore = 5;
+        unsigned int candidateCount = 1;
+        DPFJ_CANDIDATE candidate;
+
+        rc = dpfj_identify(FMDFormat, currentFMD.data, currentFMD.size, 0, FMDFormat, numberOfFingerprints, currentEventData.fingerprints, currentEventData.fingerprintSizes, thresholdScore, &candidateCount, &candidate);
+
+        if (rc != DPFJ_SUCCESS)
+        {
+            eventStatusMessage = "CheckPersonInEvent: FingerprintNotFound";
+            return;
+        }
+
+        cout << "Found " << candidateCount << " fingerprint(s) matching finger." << endl;
+        if (candidateCount > 0)
+        {
+            cout << "Person: " << currentEventData.emails[candidate.fmd_idx] << endl;
+        }
+    }
+}
 
 /**
  * @brief Captures and converts fingerprints from the fingerprint device.
@@ -547,7 +820,7 @@ void captureAndConvertFingerprint()
         rc = dpfpdd_get_device_status(fingerprintDeviceHandle, &fingerprintDeviceStatus);
         if (rc != DPFPDD_SUCCESS)
         {
-            statusMessage = "FingerprintDeviceUnavailable";
+            enrolStatusMessage = "FingerprintDeviceUnavailable";
         }
 
         else
@@ -563,13 +836,13 @@ void captureAndConvertFingerprint()
             captureResult.size = sizeof(captureResult);
             captureResult.info.size = sizeof(captureResult.info);
 
-            statusMessage = "Place your finger...";
+            enrolStatusMessage = "Place your finger...";
 
             FID fid;
             rc = dpfpdd_capture(fingerprintDeviceHandle, &captureParam, (unsigned int)(-1), &captureResult, &fid.size, fid.data);
             if (rc != DPFPDD_SUCCESS)
             {
-                statusMessage = "FingerprintCaptureError";
+                enrolStatusMessage = "FingerprintCaptureError";
             }
 
             else
@@ -579,12 +852,12 @@ void captureAndConvertFingerprint()
                 rc = dpfj_create_fmd_from_fid(captureParam.image_fmt, fid.data, fid.size, FMDFormat, currentFMD.data, &currentFMD.size);
                 if (rc != DPFJ_SUCCESS)
                 {
-                    statusMessage = "FingerprintConversionError.";
+                    enrolStatusMessage = "FingerprintConversionError.";
                 }
 
                 else
                 {
-                    statusMessage = "Captured and converted fingerprint.";
+                    enrolStatusMessage = "Captured and converted fingerprint.";
                     currentFMD.isEmpty = false;
 
                     if (currentState == ENROL)
@@ -594,17 +867,13 @@ void captureAndConvertFingerprint()
 
                     else if (currentState == VERIFY)
                     {
-                        statusMessage = "Verified fingerprint.";
+                        checkPersonInEvent();
                     }
                 }
             }
         }
     }
 }
-
-
-
-// SECTION: Event
 
 // SECTION: ImGui
 // Global GUI variables
@@ -704,10 +973,12 @@ LRESULT WINAPI WndProc(HWND windowHandle, UINT msg, WPARAM wParam, LPARAM lParam
         g_ResizeWidth = (UINT)LOWORD(lParam); // Queue resize
         g_ResizeHeight = (UINT)HIWORD(lParam);
         return 0;
+
     case WM_SYSCOMMAND:
         if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
             return 0;
         break;
+
     case WM_DESTROY:
         ::PostQuitMessage(0);
         return 0;
@@ -785,8 +1056,10 @@ int main()
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
         {
-            ImGui::Begin("Main Window");
-            ImGui::BeginChild("Enrol", ImVec2(400, 400), true);
+            ImGui::Begin("Enrol");
+
+            // Enrol
+            ImGui::BeginChild("Enrol", ImVec2(400, 200), true);
             {
                 static char firstNameInput[256] = "";
                 ImGui::InputText("First Name", firstNameInput, IM_ARRAYSIZE(firstNameInput));
@@ -799,7 +1072,7 @@ int main()
 
                 static char emailInput[256] = "";
                 ImGui::InputText("Email", emailInput, IM_ARRAYSIZE(emailInput));
-                ImGui::Text(statusMessage.c_str());
+                ImGui::Text(enrolStatusMessage.c_str());
 
                 if (ImGui::Button("Submit"))
                 {
@@ -822,6 +1095,34 @@ int main()
 
                     runFunctionInThread(enrolPerson);
                     currentState = ENROL;
+                }
+            }
+            ImGui::EndChild();
+
+            ImGui::SameLine();
+
+            // Event
+            ImGui::BeginChild("Event", ImVec2(400, 150), true);
+            {
+                static char eventNameInput[256] = "";
+                ImGui::InputText("Event Name", eventNameInput, IM_ARRAYSIZE(eventNameInput));
+                ImGui::Text(eventStatusMessage.c_str());
+                if (ImGui::Button("Register"))
+                {
+                    currentEventData.name = string(eventNameInput);
+                    runFunctionInThread(registerEvent);
+                }
+
+                if (ImGui::Button("Start"))
+                {
+                    currentEventData.name = string(eventNameInput);
+                    runFunctionInThread(startEvent);
+                    currentState = VERIFY;
+                }
+
+                if (ImGui::Button("Stop"))
+                {
+                    currentState = IDLE;
                 }
             }
 
