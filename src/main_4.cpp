@@ -35,6 +35,14 @@ using namespace std;
 // SECTION: Utility functions and variables
 int rc; // Return code (used to store the return code of functions)
 
+struct StatusMessage
+{
+    string message;
+    float timer = 5.0f;
+};
+
+StatusMessage enrolPersonDataSM;
+
 /**
  * @brief Run a function in a separate thread.
  *
@@ -257,79 +265,81 @@ FDS currentFDS = IDLE;
  *
  * @note Ensure that the DPFPDD library is properly configured and available.
  */
-void initialiseFingerprintDevice()
+void connectFingerprintDevice()
 {
-    isFingerprintDevice = false;
-
-    // Initialize DPFPDD
-    rc = dpfpdd_init();
-
-    // Check for initialization errors
-    if (rc != DPFPDD_SUCCESS)
+    if (!isFingerprintDevice)
     {
-        cout << "Error: Could not initialise DPFPDD" << endl;
-        return;
-    }
 
-    // Query fingerprint devices connected to the system
-    DPFPDD_DEV_INFO fingerprintDeviceInfoArray[2];
-    unsigned int fingerprintDeviceCount = sizeof(fingerprintDeviceInfoArray) / sizeof(fingerprintDeviceInfoArray[0]);
-    rc = dpfpdd_query_devices(&fingerprintDeviceCount, fingerprintDeviceInfoArray);
+        // Initialize DPFPDD
+        rc = dpfpdd_init();
 
-    // Check for query errors
-    if (rc != DPFPDD_SUCCESS)
-    {
-        cout << "Error: Could not query for fingerprint devices" << endl;
-        return;
-    }
-
-    // Check if a valid fingerprint device is available
-    string defaultFingerprintDeviceStr = "&0000&0000";
-    unsigned int fingerprintDeviceIndex = 99;
-    for (unsigned int i = 0; i < fingerprintDeviceCount; i++)
-    {
-        string selectFingerprintDeviceStr = fingerprintDeviceInfoArray[i].name;
-        if (selectFingerprintDeviceStr.find(defaultFingerprintDeviceStr) == string::npos)
+        // Check for initialization errors
+        if (rc != DPFPDD_SUCCESS)
         {
-            fingerprintDeviceIndex = i;
-            break;
+            cout << "Error: Could not initialise DPFPDD" << endl;
+            return;
         }
+
+        // Query fingerprint devices connected to the system
+        DPFPDD_DEV_INFO fingerprintDeviceInfoArray[2];
+        unsigned int fingerprintDeviceCount = sizeof(fingerprintDeviceInfoArray) / sizeof(fingerprintDeviceInfoArray[0]);
+        rc = dpfpdd_query_devices(&fingerprintDeviceCount, fingerprintDeviceInfoArray);
+
+        // Check for query errors
+        if (rc != DPFPDD_SUCCESS)
+        {
+            cout << "Error: Could not query for fingerprint devices" << endl;
+            return;
+        }
+
+        // Check if a valid fingerprint device is available
+        string defaultFingerprintDeviceStr = "&0000&0000";
+        unsigned int fingerprintDeviceIndex = 99;
+        for (unsigned int i = 0; i < fingerprintDeviceCount; i++)
+        {
+            string selectFingerprintDeviceStr = fingerprintDeviceInfoArray[i].name;
+            if (selectFingerprintDeviceStr.find(defaultFingerprintDeviceStr) == string::npos)
+            {
+                fingerprintDeviceIndex = i;
+                break;
+            }
+        }
+
+        // Check if a valid fingerprint device was found
+        if (fingerprintDeviceIndex == 99)
+        {
+            cout << "Error: Could not find a valid fingerprint device" << endl;
+            return;
+        }
+
+        // Open the fingerprint device
+        char *fingerprintDeviceName = fingerprintDeviceInfoArray[fingerprintDeviceIndex].name;
+        rc = dpfpdd_open_ext(fingerprintDeviceName, DPFPDD_PRIORITY_EXCLUSIVE, &fingerprintDeviceHandle);
+
+        // Check for errors while opening device
+        if (rc != DPFPDD_SUCCESS)
+        {
+            cout << "Error: Could not open DPFPDD device" << endl;
+            return;
+        }
+
+        // Retrieve the device's capabilities and set the image resolution
+        DPFPDD_DEV_CAPS fingerprintDeviceCapabilities;
+        fingerprintDeviceCapabilities.size = 100;
+        rc = dpfpdd_get_device_capabilities(fingerprintDeviceHandle, &fingerprintDeviceCapabilities);
+
+        // Check for device capabilities retrieval errors
+        if (rc != DPFPDD_SUCCESS)
+        {
+            cout << "Error: Could not get fingerprint device capabilities" << endl;
+            return;
+        }
+
+        fingerprintDeviceImageRes = fingerprintDeviceCapabilities.resolutions[0];
+        isFingerprintDevice = true;
+
+        cout << "Success: Initialised fingerprint device" << endl;
     }
-
-    // Check if a valid fingerprint device was found
-    if (fingerprintDeviceIndex == 99)
-    {
-        cout << "Error: Could not find a valid fingerprint device" << endl;
-        return;
-    }
-
-    // Open the fingerprint device
-    char *fingerprintDeviceName = fingerprintDeviceInfoArray[fingerprintDeviceIndex].name;
-    rc = dpfpdd_open_ext(fingerprintDeviceName, DPFPDD_PRIORITY_EXCLUSIVE, &fingerprintDeviceHandle);
-
-    // Check for errors while opening device
-    if (rc != DPFPDD_SUCCESS)
-    {
-        cout << "Error: Could not open DPFPDD device" << endl;
-        return;
-    }
-
-    // Retrieve the device's capabilities and set the image resolution
-    DPFPDD_DEV_CAPS fingerprintDeviceCapabilities;
-    fingerprintDeviceCapabilities.size = 100;
-    rc = dpfpdd_get_device_capabilities(fingerprintDeviceHandle, &fingerprintDeviceCapabilities);
-
-    // Check for device capabilities retrieval errors
-    if (rc != DPFPDD_SUCCESS)
-    {
-        cout << "Error: Could not get fingerprint device capabilities" << endl;
-        return;
-    }
-
-    fingerprintDeviceImageRes = fingerprintDeviceCapabilities.resolutions[0];
-    isFingerprintDevice = true;
-
-    cout << "Success: Initialised fingerprint device" << endl;
 }
 
 void checkFingerprintDeviceStatus()
@@ -341,7 +351,7 @@ void checkFingerprintDeviceStatus()
         if (rc != DPFPDD_SUCCESS)
         {
             isFingerprintDevice = false;
-            initialiseFingerprintDevice();
+            connectFingerprintDevice();
         }
 
         else
@@ -470,9 +480,11 @@ void retrievePersonData()
  */
 void enrolPersonData()
 {
+    enrolPersonDataSM = StatusMessage();
     retrievePersonData();
     if (currentPersonData.isValid)
     {
+        enrolPersonDataSM.message = "Data already exists for the given email.";
         cout << "Error: The person already exists" << endl;
         return;
     }
@@ -488,12 +500,107 @@ void enrolPersonData()
 
         else
         {
+            enrolPersonDataSM.message = "Invalid input has been entered.";
             cout << "Error: Invalid input has been entered" << endl;
             return;
         }
     }
 
+    enrolPersonDataSM.message = "Enrolled person successfully";
     cout << "Success: Enrolled person's data" << endl;
+}
+
+void insertFingerprint()
+{
+    const char *insertFingerprintSQL = "UPDATE PersonData SET fingerprint_data = ? WHERE email = ?";
+    sqlite3_stmt *insertFingerprintStmt;
+
+    if (sqlite3_prepare_v2(db, insertFingerprintSQL, -1, &insertFingerprintStmt, 0) == SQLITE_OK)
+    {
+        sqlite3_bind_blob(insertFingerprintStmt, 1, currentFMD.data, currentFMD.size, SQLITE_STATIC);
+        sqlite3_bind_text(insertFingerprintStmt, 2, currentPersonData.email.c_str(), -1, SQLITE_STATIC);
+    }
+
+    else
+    {
+        // enrolStatusMessage = "EnrolFingerprint: SQLiteError(StatementPreparationError)";
+        return;
+    }
+
+    // Execute the statement
+    rc = sqlite3_step(insertFingerprintStmt);
+
+    // Check for errors
+    if (rc != SQLITE_DONE)
+    {
+        sqlite3_finalize(insertFingerprintStmt);
+        // enrolStatusMessage = "EnrolFingerprint: SQLiteError(StatementFinalisationError)";
+
+        return;
+    }
+
+    sqlite3_finalize(insertFingerprintStmt);
+    // enrolStatusMessage = "Enrolled fingerprint.";
+}
+
+void retrieveFingerprint(string id)
+{
+    FMD currentFMD;
+
+    const char *retrieveFingerprintSQL = "SELECT fingerprint_data FROM Person WHERE email = ?";
+    sqlite3_stmt *retrieveFingerprintStmt;
+    if (sqlite3_prepare_v2(db, retrieveFingerprintSQL, -1, &retrieveFingerprintStmt, 0) == SQLITE_OK)
+    {
+        sqlite3_bind_text(retrieveFingerprintStmt, 1, id.c_str(), -1, SQLITE_STATIC);
+
+        while (sqlite3_step(retrieveFingerprintStmt) == SQLITE_ROW)
+        {
+            const void *data = sqlite3_column_blob(retrieveFingerprintStmt, 0);
+            int size = sqlite3_column_bytes(retrieveFingerprintStmt, 0);
+
+            if (data && size > 0)
+            {
+                const unsigned char *fingerprintData = static_cast<const unsigned char *>(data);
+                unsigned char *fingerprint = new unsigned char[size];
+                memcpy(fingerprint, fingerprintData, size);
+                currentFMD.data = fingerprint;
+                currentFMD.size = size;
+            }
+            else
+            {
+                cerr << "No fingerprint found for the id supplied." << endl;
+                sqlite3_finalize(retrieveFingerprintStmt);
+            }
+        }
+    }
+
+    sqlite3_finalize(retrieveFingerprintStmt);
+
+    cout << "Retrieved fingerprint." << endl;
+
+    currentFMD.isEmpty = false;
+}
+
+void enrolFingerprint()
+{
+    string emailToInsert = currentPersonData.email;
+    bool isValidEmail = validateInput(emailToInsert, "EMAIL");
+    if (!isValidEmail)
+    {
+        // enrolStatusMessage = "EnrolFingerprint: InvalidIDError";
+        return;
+    }
+
+    retrieveFingerprint();
+
+    if (currentFMD.isEmpty)
+    {
+        
+    }
+    
+    insertFingerprint();
+
+    currentFDS = IDLE;
 }
 
 /**
@@ -680,9 +787,8 @@ LRESULT WINAPI WndProc(HWND windowHandle, UINT msg, WPARAM wParam, LPARAM lParam
 int main()
 {
     runFunctionInThread(initialiseDatabase);
-    runFunctionInThread(initialiseFingerprintDevice);
-    runFunctionInThread(runFingerprintDevice);
     runFunctionInThread(checkFingerprintDeviceStatus);
+    runFunctionInThread(runFingerprintDevice);
 
     // Create application window
     WNDCLASSEXW wc = {sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Biometric Attendance System", nullptr};
@@ -735,20 +841,20 @@ int main()
             break;
 
         // Handle window resize (we don't resize directly in the WM_SIZE handler)
-        // if (g_ResizeWidth != 0 && g_ResizeHeight != 0)
-        // {
-        //     CleanupRenderTarget();
-        //     g_pSwapChain->ResizeBuffers(0, g_ResizeWidth, g_ResizeHeight, DXGI_FORMAT_UNKNOWN, 0);
-        //     g_ResizeWidth = g_ResizeHeight = 0;
-        //     CreateRenderTarget();
-        // }
+        if (g_ResizeWidth != 0 && g_ResizeHeight != 0)
+        {
+            CleanupRenderTarget();
+            g_pSwapChain->ResizeBuffers(0, g_ResizeWidth, g_ResizeHeight, DXGI_FORMAT_UNKNOWN, 0);
+            g_ResizeWidth = g_ResizeHeight = 0;
+            CreateRenderTarget();
+        }
 
         ImGui_ImplDX11_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
         {
-            static ImGuiWindowFlags flags =  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoTitleBar;
+            static ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoTitleBar;
             bool p_open = true;
 
             const ImGuiViewport *viewport = ImGui::GetMainViewport();
@@ -762,13 +868,12 @@ int main()
                 ImGui::Indent(650.0);
                 ImGui::Text("Fingerprint Device: ");
                 if (isFingerprintDevice)
-                    ImGui::TextColored(ImVec4(0.657f, 0.097f, 0.0f, 1.0f), "Connected");
+                    ImGui::TextColored(ImVec4(0.0f, 0.652f, 0.0f, 1.0f), "Connected");
                 else
-                    ImGui::TextColored(ImVec4(0.0f, 0.652f, 0.0f, 1.0f), "Disconnected");
+                    ImGui::TextColored(ImVec4(0.657f, 0.097f, 0.0f, 1.0f), "Disconnected");
             }
             ImGui::EndMainMenuBar();
 
-            ImGuiID imguiID = 0;
             ImGui::BeginChild("Enrol", ImVec2(400, 200));
             {
                 static char firstNameInput[256] = "";
@@ -805,6 +910,12 @@ int main()
                     runFunctionInThread(enrolPersonData);
                     currentFDS = ENROL;
                 }
+
+                ImGui::Text(enrolPersonDataSM.message.c_str());
+                enrolPersonDataSM.timer -= ImGui::GetIO().DeltaTime;
+
+                if (enrolPersonDataSM.timer <= 0.0f)
+                    enrolPersonDataSM.message = "";
             }
             ImGui::EndChild();
 

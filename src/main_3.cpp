@@ -366,6 +366,7 @@ struct Person
     string lastName;
     bool isValid;
 };
+
 Person currentPerson;
 
 /**
