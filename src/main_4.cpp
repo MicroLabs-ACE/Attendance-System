@@ -1,4 +1,4 @@
-// Iteration 3
+// Iteration 4
 
 /*TODO
  */
@@ -543,9 +543,9 @@ void insertFingerprint()
     // enrolStatusMessage = "Enrolled fingerprint.";
 }
 
-void retrieveFingerprint(string id)
+FMD retrieveFingerprint(string id)
 {
-    FMD currentFMD;
+    FMD fmdToRetrieve;
 
     const char *retrieveFingerprintSQL = "SELECT fingerprint_data FROM Person WHERE email = ?";
     sqlite3_stmt *retrieveFingerprintStmt;
@@ -563,22 +563,29 @@ void retrieveFingerprint(string id)
                 const unsigned char *fingerprintData = static_cast<const unsigned char *>(data);
                 unsigned char *fingerprint = new unsigned char[size];
                 memcpy(fingerprint, fingerprintData, size);
-                currentFMD.data = fingerprint;
-                currentFMD.size = size;
+                fmdToRetrieve.data = fingerprint;
+                fmdToRetrieve.size = size;
             }
             else
             {
                 cerr << "No fingerprint found for the id supplied." << endl;
                 sqlite3_finalize(retrieveFingerprintStmt);
+                return FMD();
             }
         }
+    }
+
+    else
+    {
+        return FMD();
     }
 
     sqlite3_finalize(retrieveFingerprintStmt);
 
     cout << "Retrieved fingerprint." << endl;
 
-    currentFMD.isEmpty = false;
+    fmdToRetrieve.isEmpty = false;
+    return fmdToRetrieve;
 }
 
 void enrolFingerprint()
@@ -587,20 +594,20 @@ void enrolFingerprint()
     bool isValidEmail = validateInput(emailToInsert, "EMAIL");
     if (!isValidEmail)
     {
-        // enrolStatusMessage = "EnrolFingerprint: InvalidIDError";
+        cout << "Error: Email is invalid." << endl;
         return;
     }
 
-    retrieveFingerprint();
-
-    if (currentFMD.isEmpty)
+    FMD retrievedFMD = retrieveFingerprint(emailToInsert);
+    if (!retrievedFMD.isEmpty)
     {
-        
+        cout << "Error: Fingerprint already exists for email." << endl;
+        return;
     }
-    
-    insertFingerprint();
 
+    insertFingerprint();
     currentFDS = IDLE;
+    cout << "Success: Inserted fingerprint" << endl;
 }
 
 /**
@@ -659,7 +666,7 @@ void runFingerprintDevice()
 
                     if (currentFDS == ENROL)
                     {
-                        cout << "ENROL" << endl;
+                        enrolFingerprint();
                     }
 
                     else if (currentFDS == VERIFY)
@@ -822,7 +829,7 @@ int main()
     ImGui_ImplDX11_Init(g_pDirect3DDevice, g_pDirect3DDeviceContext);
 
     // Our state
-    ImVec4 colour = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    ImVec4 colour = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 
     bool done = false;
     while (!done)
@@ -865,7 +872,7 @@ int main()
 
             ImGui::BeginMainMenuBar();
             {
-                ImGui::Indent(650.0);
+                ImGui::Indent(768.0);
                 ImGui::Text("Fingerprint Device: ");
                 if (isFingerprintDevice)
                     ImGui::TextColored(ImVec4(0.0f, 0.652f, 0.0f, 1.0f), "Connected");
@@ -873,9 +880,11 @@ int main()
                     ImGui::TextColored(ImVec4(0.657f, 0.097f, 0.0f, 1.0f), "Disconnected");
             }
             ImGui::EndMainMenuBar();
-
-            ImGui::BeginChild("Enrol", ImVec2(400, 200));
+            
+            ImGui::BeginChild("Enrol", ImVec2(320, 200));
             {
+                ImGui::SeparatorText("General");
+
                 static char firstNameInput[256] = "";
                 ImGui::InputText("First Name", firstNameInput, IM_ARRAYSIZE(firstNameInput));
 
