@@ -42,6 +42,8 @@ struct StatusMessage
 };
 
 StatusMessage enrolPersonDataSM;
+StatusMessage enrolFingerprintSM;
+StatusMessage eventSM;
 
 /**
  * @brief Run a function in a separate thread.
@@ -85,6 +87,7 @@ bool validateInput(string input, string datatype)
          */
         isValid = regex_match(input, regex(R"([a-zA-Z]{2,})"));
     }
+
     else if (datatype == "EMAIL")
     {
         /**
@@ -120,9 +123,7 @@ pair<map<string, string>, map<string, string>> parseDBiniFile(const string &iniF
     ifstream iniFile(iniFilePath);
 
     if (!iniFile.is_open())
-    {
         return {{}, {}};
-    }
 
     map<string, string> database;
     map<string, string> tables;
@@ -133,6 +134,7 @@ pair<map<string, string>, map<string, string>> parseDBiniFile(const string &iniF
     {
         if (line.empty() || line[0] == ';')
             continue;
+
         else
         {
             line = line.substr(line.find_first_not_of(" \t\r\n"));
@@ -144,7 +146,6 @@ pair<map<string, string>, map<string, string>> parseDBiniFile(const string &iniF
             else
             {
                 size_t equalPos = line.find('=');
-
                 if (equalPos != string::npos)
                 {
                     string key = line.substr(0, equalPos - 1);
@@ -369,7 +370,7 @@ struct PersonData
     bool isValid;
 };
 
-PersonData currentPersonData;
+PersonData currentPD;
 
 /**
  * @brief Validate and sanitize the input data of a Person.
@@ -398,12 +399,11 @@ PersonData validatePersonDataInput(PersonData personData)
     if (!isLastName)
         personData.lastName = "";
 
-    // Set the `isValid` flag based on all field validations
     personData.isValid = isEmail && isFirstName && isOtherName && isLastName;
-
     return personData;
 }
 
+// Enrol person data
 void insertPersonData()
 {
     const char *insertPersonDataSQL = "INSERT INTO PersonData (email, first_name, other_name, last_name) VALUES (?, ?, ?, ?)";
@@ -413,10 +413,10 @@ void insertPersonData()
     if (sqlite3_prepare_v2(db, insertPersonDataSQL, -1, &insertPersonDataStmt, 0) == SQLITE_OK)
     {
         // Bind parameters
-        sqlite3_bind_text(insertPersonDataStmt, 1, currentPersonData.email.c_str(), -1, SQLITE_STATIC);
-        sqlite3_bind_text(insertPersonDataStmt, 2, currentPersonData.firstName.c_str(), -1, SQLITE_STATIC);
-        sqlite3_bind_text(insertPersonDataStmt, 3, currentPersonData.otherName.c_str(), -1, SQLITE_STATIC);
-        sqlite3_bind_text(insertPersonDataStmt, 4, currentPersonData.lastName.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_text(insertPersonDataStmt, 1, currentPD.email.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_text(insertPersonDataStmt, 2, currentPD.firstName.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_text(insertPersonDataStmt, 3, currentPD.otherName.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_text(insertPersonDataStmt, 4, currentPD.lastName.c_str(), -1, SQLITE_STATIC);
 
         // Execute the statement
         rc = sqlite3_step(insertPersonDataStmt);
@@ -449,18 +449,18 @@ void retrievePersonData()
 
     if (sqlite3_prepare_v2(db, retrievePersonDataSQL.c_str(), -1, &retrievePersonDataStmt, 0) == SQLITE_OK)
     {
-        sqlite3_bind_text(retrievePersonDataStmt, 1, currentPersonData.email.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_text(retrievePersonDataStmt, 1, currentPD.email.c_str(), -1, SQLITE_STATIC);
         while (sqlite3_step(retrievePersonDataStmt) == SQLITE_ROW)
         {
             const char *firstName = reinterpret_cast<const char *>(sqlite3_column_text(retrievePersonDataStmt, 0));
             const char *otherName = reinterpret_cast<const char *>(sqlite3_column_text(retrievePersonDataStmt, 1));
             const char *lastName = reinterpret_cast<const char *>(sqlite3_column_text(retrievePersonDataStmt, 2));
 
-            currentPersonData.firstName = string(firstName);
-            currentPersonData.otherName = string(otherName);
-            currentPersonData.lastName = string(lastName);
+            currentPD.firstName = string(firstName);
+            currentPD.otherName = string(otherName);
+            currentPD.lastName = string(lastName);
 
-            currentPersonData = validatePersonDataInput(currentPersonData);
+            currentPD = validatePersonDataInput(currentPD);
         }
     }
 
@@ -482,34 +482,32 @@ void enrolPersonData()
 {
     enrolPersonDataSM = StatusMessage();
     retrievePersonData();
-    if (currentPersonData.isValid)
+    if (currentPD.isValid)
     {
         enrolPersonDataSM.message = "Data already exists for the given email.";
-        cout << "Error: The person already exists" << endl;
         return;
     }
 
     else
     {
-        PersonData validatedPersonData = validatePersonDataInput(currentPersonData);
+        PersonData validatedPersonData = validatePersonDataInput(currentPD);
         if (validatedPersonData.isValid)
         {
-            currentPersonData = validatedPersonData;
+            currentPD = validatedPersonData;
             insertPersonData();
         }
 
         else
         {
             enrolPersonDataSM.message = "Invalid input has been entered.";
-            cout << "Error: Invalid input has been entered" << endl;
             return;
         }
     }
 
     enrolPersonDataSM.message = "Enrolled person successfully";
-    cout << "Success: Enrolled person's data" << endl;
 }
 
+// Enrol fingerprint
 void insertFingerprint()
 {
     const char *insertFingerprintSQL = "UPDATE PersonData SET fingerprint_data = ? WHERE email = ?";
@@ -518,7 +516,7 @@ void insertFingerprint()
     if (sqlite3_prepare_v2(db, insertFingerprintSQL, -1, &insertFingerprintStmt, 0) == SQLITE_OK)
     {
         sqlite3_bind_blob(insertFingerprintStmt, 1, currentFMD.data, currentFMD.size, SQLITE_STATIC);
-        sqlite3_bind_text(insertFingerprintStmt, 2, currentPersonData.email.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_text(insertFingerprintStmt, 2, currentPD.email.c_str(), -1, SQLITE_STATIC);
     }
 
     else
@@ -590,24 +588,128 @@ FMD retrieveFingerprint(string id)
 
 void enrolFingerprint()
 {
-    string emailToInsert = currentPersonData.email;
+    string emailToInsert = currentPD.email;
     bool isValidEmail = validateInput(emailToInsert, "EMAIL");
     if (!isValidEmail)
     {
-        cout << "Error: Email is invalid." << endl;
+        // cout << "Error: Email is invalid." << endl;
+        enrolFingerprintSM.message = "Email supplied is invalid";
         return;
     }
 
     FMD retrievedFMD = retrieveFingerprint(emailToInsert);
     if (!retrievedFMD.isEmpty)
     {
-        cout << "Error: Fingerprint already exists for email." << endl;
+        // cout << "Error: Fingerprint already exists for email." << endl;
+        enrolFingerprintSM.message = "A fingerprint already exists for the email";
         return;
     }
 
     insertFingerprint();
     currentFDS = IDLE;
     cout << "Success: Inserted fingerprint" << endl;
+    enrolFingerprintSM.message = "Fingerprint has been enrolled.";
+}
+
+// SECTION: Event
+struct EventData
+{
+    string name;
+    vector<string> emails;
+    unsigned int *fingerprintSizes;
+    unsigned char **fingerprints;
+};
+
+EventData currentED;
+
+void insertEvent(EventData eventDataToInsert)
+{
+    const char *insertEventDataSQL = "INSERT INTO EventData (name) VALUES (?)";
+    sqlite3_stmt *insertEventDataStmt;
+
+    // Prepare the SQL statement
+    if (sqlite3_prepare_v2(db, insertEventDataSQL, -1, &insertEventDataStmt, 0) == SQLITE_OK)
+    {
+        // Bind parameters
+        sqlite3_bind_text(insertEventDataStmt, 1, eventDataToInsert.name.c_str(), -1, SQLITE_STATIC);
+        // Execute the statement
+        rc = sqlite3_step(insertEventDataStmt);
+
+        // Check for errors
+        if (rc != SQLITE_DONE)
+        {
+            sqlite3_finalize(insertEventDataStmt);
+            return;
+        }
+
+        // Finalize the statement
+        sqlite3_finalize(insertEventDataStmt);
+    }
+
+    else
+    {
+        eventSM.message = "InsertEvent: PrepStatementError";
+        return;
+    }
+
+    eventSM.message = "Inserted event.";
+}
+
+
+void registerEvent()
+{
+    bool isValidEventName = validateInput(currentED.name, "TEXT");
+    if (isValidEventName)
+    {
+        insertEvent(currentED);
+
+        string createEventTableSQL = "CREATE TABLE IF NOT EXISTS " + currentED.name + " (email TEXT, sign_in TEXT, sign_out TEXT)";
+        rc = sqlite3_exec(db, createEventTableSQL.c_str(), 0, 0, 0);
+        if (rc != SQLITE_OK)
+        {
+            eventSM.message = "RegisterEvent: TableCreationError";
+            return;
+        }
+
+        const char *getInviteesSQL = "SELECT email FROM Person";
+        sqlite3_stmt *getInviteesStmt;
+
+        if (sqlite3_prepare_v2(db, getInviteesSQL, -1, &getInviteesStmt, 0) == SQLITE_OK)
+        {
+            while (sqlite3_step(getInviteesStmt) == SQLITE_ROW)
+            {
+                const char *email = reinterpret_cast<const char *>(sqlite3_column_text(getInviteesStmt, 0));
+                string insertInviteeSQL = "INSERT INTO " + currentED.name + " (email) VALUES (?)";
+                sqlite3_stmt *insertInviteeStmt;
+                if (sqlite3_prepare_v2(db, insertInviteeSQL.c_str(), -1, &insertInviteeStmt, 0) == SQLITE_OK)
+                {
+                    // Bind parameters
+                    sqlite3_bind_text(insertInviteeStmt, 1, email, -1, SQLITE_STATIC);
+                }
+
+                else
+                {
+                    eventSM.message = "RegisterEvent: InviteeStatementPrepError";
+                    return;
+                }
+
+                // Execute the statement
+                rc = sqlite3_step(insertInviteeStmt);
+
+                // Check for errors
+                if (rc != SQLITE_DONE)
+                {
+                    sqlite3_finalize(insertInviteeStmt);
+                    eventSM.message = "RegisterEvent: InviteeInsertionError";
+                    return;
+                }
+
+                // Finalize the statement
+                sqlite3_finalize(insertInviteeStmt);
+                eventSM.message = "Inserted invitee.";
+            }
+        }
+    }
 }
 
 /**
@@ -640,13 +742,15 @@ void runFingerprintDevice()
             captureResult.size = sizeof(captureResult);
             captureResult.info.size = sizeof(captureResult.info);
 
-            cout << "Place your finger..." << endl;
+            if (currentFDS == ENROL)
+                enrolFingerprintSM.message = "Place your finger...";
 
             FID fid;
             rc = dpfpdd_capture(fingerprintDeviceHandle, &captureParam, (unsigned int)(-1), &captureResult, &fid.size, fid.data);
             if (rc != DPFPDD_SUCCESS)
             {
                 cout << "Error: Could not capture fingerprint" << endl;
+                enrolFingerprintSM.message = "Fingerprint could not be processed.";
             }
 
             else
@@ -657,6 +761,7 @@ void runFingerprintDevice()
                 if (rc != DPFJ_SUCCESS)
                 {
                     cout << "Error: Could not convert fingerprint to FMD from FID" << endl;
+                    enrolFingerprintSM.message = "Fingerprint could not be processed.";
                 }
 
                 else
@@ -880,10 +985,10 @@ int main()
                     ImGui::TextColored(ImVec4(0.657f, 0.097f, 0.0f, 1.0f), "Disconnected");
             }
             ImGui::EndMainMenuBar();
-            
+
             ImGui::BeginChild("Enrol", ImVec2(320, 200));
             {
-                ImGui::SeparatorText("General");
+                ImGui::SeparatorText("Enrol");
 
                 static char firstNameInput[256] = "";
                 ImGui::InputText("First Name", firstNameInput, IM_ARRAYSIZE(firstNameInput));
@@ -899,22 +1004,22 @@ int main()
 
                 if (ImGui::Button("Enrol Data"))
                 {
-                    currentPersonData = PersonData();
-                    currentPersonData.email = string(emailInput);
-                    currentPersonData.firstName = string(firstNameInput);
-                    currentPersonData.otherName = string(otherNameInput);
-                    currentPersonData.lastName = string(lastNameInput);
+                    currentPD = PersonData();
+                    currentPD.email = string(emailInput);
+                    currentPD.firstName = string(firstNameInput);
+                    currentPD.otherName = string(otherNameInput);
+                    currentPD.lastName = string(lastNameInput);
 
                     runFunctionInThread(enrolPersonData);
                 }
 
                 if (ImGui::Button("Enrol Data with Fingerprint"))
                 {
-                    currentPersonData = PersonData();
-                    currentPersonData.email = string(emailInput);
-                    currentPersonData.firstName = string(firstNameInput);
-                    currentPersonData.otherName = string(otherNameInput);
-                    currentPersonData.lastName = string(lastNameInput);
+                    currentPD = PersonData();
+                    currentPD.email = string(emailInput);
+                    currentPD.firstName = string(firstNameInput);
+                    currentPD.otherName = string(otherNameInput);
+                    currentPD.lastName = string(lastNameInput);
 
                     runFunctionInThread(enrolPersonData);
                     currentFDS = ENROL;
@@ -925,6 +1030,17 @@ int main()
 
                 if (enrolPersonDataSM.timer <= 0.0f)
                     enrolPersonDataSM.message = "";
+            }
+            ImGui::EndChild();
+
+            ImGui::SameLine();
+
+            ImGui::BeginChild("Event");
+            {
+                ImGui::SeparatorText("Event");
+
+                static char eventNameInput[256] = "";
+                ImGui::InputText("Event Name", eventNameInput, IM_ARRAYSIZE(eventNameInput));
             }
             ImGui::EndChild();
 

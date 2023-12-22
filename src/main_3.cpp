@@ -579,6 +579,7 @@ void insertEvent(EventData eventDataToInsert)
     eventStatusMessage = "Inserted event.";
 }
 
+}
 void registerEvent()
 {
     bool isValidEventName = validateInput(currentEventData.name, "TEXT");
@@ -633,7 +634,6 @@ void registerEvent()
             }
         }
     }
-}
 
 FMD retrieveFingerprint(string id)
 {
